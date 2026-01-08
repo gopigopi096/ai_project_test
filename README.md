@@ -1,202 +1,209 @@
 # IHMS - Integrated Hospital Management System
 
-A comprehensive microservices-based hospital management system built with Spring Boot and Angular.
+A microservices-based Hospital Management System built with Spring Boot and Angular, featuring a Jenkins CI/CD pipeline with Nexus Repository integration.
 
-## Architecture
+## 🏗️ Architecture
 
-```
-┌─────────────────────────────────────────────────────────────────────┐
-│                        Angular Frontend                              │
-│                       (ihms-portal:80)                               │
-└───────────────────────────────┬─────────────────────────────────────┘
-                                │
-                                ▼
-┌─────────────────────────────────────────────────────────────────────┐
-│                        API Gateway                                   │
-│                    (gateway-service:8080)                            │
-└───────────────────────────────┬─────────────────────────────────────┘
-                                │
-        ┌───────────────────────┼───────────────────────┐
-        │                       │                       │
-        ▼                       ▼                       ▼
-┌───────────────┐   ┌───────────────┐   ┌───────────────┐
-│ Auth Service  │   │Patient Service│   │ Appointment   │
-│   (:8081)     │   │   (:8082)     │   │   (:8083)     │
-└───────────────┘   └───────────────┘   └───────────────┘
-        │                   │                   │
-        ▼                   ▼                   ▼
-┌───────────────┐   ┌───────────────┐   ┌───────────────┐
-│   auth-db     │   │  patient-db   │   │appointment-db │
-│   (:5433)     │   │   (:5434)     │   │   (:5435)     │
-└───────────────┘   └───────────────┘   └───────────────┘
+### Backend Services (Spring Boot 3.2)
+| Service | Port | Description |
+|---------|------|-------------|
+| discovery-service | 8761 | Eureka Service Discovery |
+| gateway-service | 8080 | API Gateway |
+| auth-service | 8081 | Authentication & JWT |
+| patient-service | 8082 | Patient Management |
+| appointment-service | 8083 | Appointment Scheduling |
+| billing-service | 8084 | Billing & Invoicing |
+| pharmacy-service | 8085 | Pharmacy & Inventory |
 
-        ┌───────────────────────┬───────────────────────┐
-        ▼                       ▼                       ▼
-┌───────────────┐   ┌───────────────┐   ┌───────────────┐
-│Billing Service│   │Pharmacy Svc   │   │Discovery Svc  │
-│   (:8084)     │   │   (:8085)     │   │(Eureka:8761)  │
-└───────────────┘   └───────────────┘   └───────────────┘
-        │                   │
-        ▼                   ▼
-┌───────────────┐   ┌───────────────┐
-│  billing-db   │   │  pharmacy-db  │
-│   (:5436)     │   │   (:5437)     │
-└───────────────┘   └───────────────┘
-```
-
-## Technology Stack
-
-### Backend
-- **Java 17** with Spring Boot 3.2
-- **Spring Cloud** (Eureka, Gateway, OpenFeign)
-- **Spring Security** with JWT Authentication
-- **Spring Data JPA** with PostgreSQL
-- **Flyway** for database migrations
-- **SpringDoc OpenAPI** for API documentation
-
-### Frontend
-- **Angular 17** (Standalone Components)
-- **Angular Material** for UI components
-- **RxJS** for reactive programming
+### Frontend (Angular 17)
+| Service | Port | Description |
+|---------|------|-------------|
+| ihms-portal | 3000 | Angular SPA |
 
 ### Infrastructure
-- **Docker** & **Docker Compose**
-- **Jenkins** CI/CD Pipeline
-- **Nexus Repository** for artifact storage
-- **PostgreSQL 15** (Database per service)
+| Service | Port | Description |
+|---------|------|-------------|
+| Nexus Repository | 8090 | Artifact & Docker Registry |
+| Nexus Docker Registry | 8091 | Docker Image Registry |
+| Jenkins | 8888 | CI/CD Pipeline |
+| PostgreSQL (per service) | 5433-5437 | Databases |
 
-## Project Structure
-
-```
-ihms/
-├── common-lib/             # Shared DTOs, utilities, security
-├── discovery-service/      # Eureka Service Registry
-├── gateway-service/        # API Gateway with routing
-├── auth-service/           # Authentication & Authorization
-├── patient-service/        # Patient Management
-├── appointment-service/    # Appointment Scheduling
-├── billing-service/        # Invoicing & Payments
-├── pharmacy-service/       # Medication & Inventory
-└── frontend/
-    └── ihms-portal/        # Angular SPA
-```
-
-## Getting Started
+## 🚀 Quick Start
 
 ### Prerequisites
-- JDK 17+
-- Node.js 18+
 - Docker & Docker Compose
-- Gradle 8+
+- Java 17
+- Node.js 18+
+- Git
 
-### Local Development
+### 1. Start Infrastructure
 
-1. **Clone the repository**
-   ```bash
-   git clone https://github.com/yourorg/ihms.git
-   cd ihms
-   ```
+```bash
+# Start all databases
+docker-compose -f docker-compose.local.yml up -d auth-db patient-db appointment-db billing-db pharmacy-db
 
-2. **Start infrastructure (databases)**
-   ```bash
-   docker-compose up -d auth-db patient-db appointment-db billing-db pharmacy-db
-   ```
+# Start Nexus Repository
+docker-compose -f docker-compose.nexus.yml up -d
 
-3. **Build all services**
-   ```bash
-   ./gradlew clean build
-   ```
+# Wait for Nexus to start (2-3 minutes), then get admin password
+docker exec nexus cat /nexus-data/admin.password
+```
 
-4. **Start Discovery Service first**
-   ```bash
-   ./gradlew :discovery-service:bootRun
-   ```
+### 2. Build & Run Services
 
-5. **Start other services**
-   ```bash
-   ./gradlew :gateway-service:bootRun
-   ./gradlew :auth-service:bootRun
-   ./gradlew :patient-service:bootRun
-   ./gradlew :appointment-service:bootRun
-   ./gradlew :billing-service:bootRun
-   ./gradlew :pharmacy-service:bootRun
-   ```
+```bash
+# Build all services
+./gradlew clean build -x test
 
-6. **Start Angular frontend**
-   ```bash
-   cd frontend/ihms-portal
-   npm install
-   npm start
-   ```
+# Start all services
+docker-compose -f docker-compose.local.yml up -d
+```
 
-### Docker Deployment
+### 3. Access Applications
 
-1. **Configure environment**
-   ```bash
-   cp .env.example .env
-   # Edit .env with your settings
-   ```
+| Application | URL |
+|-------------|-----|
+| Frontend | http://localhost:3000 |
+| API Gateway | http://localhost:8080 |
+| Eureka Dashboard | http://localhost:8761 |
+| Nexus Repository | http://localhost:8090 |
+| Jenkins | http://localhost:8888 |
 
-2. **Build and run all services**
-   ```bash
-   docker-compose up -d --build
-   ```
+## 🔧 Jenkins Pipeline Setup
 
-3. **Access the application**
-   - Frontend: http://localhost
-   - API Gateway: http://localhost:8080
-   - Eureka Dashboard: http://localhost:8761
-   - Swagger UI: http://localhost:8080/swagger-ui.html
+### Pipeline Features
+The `Jenkinsfile.selectable` provides:
+- **Selectable Build Scope**: ALL, ALL_BACKEND, ALL_FRONTEND, or SELECT_INDIVIDUAL
+- **Individual Service Selection**: Checkbox for each microservice
+- **Nexus Integration**: Deploy JARs to Maven repository
+- **Docker Registry**: Push Docker images to Nexus
+- **Local Deployment**: Optional deployment to local Docker
 
-## API Documentation
+### Setting Up Jenkins Job
 
-Once services are running, access Swagger UI:
-- Auth Service: http://localhost:8081/swagger-ui.html
-- Patient Service: http://localhost:8082/swagger-ui.html
-- Appointment Service: http://localhost:8083/swagger-ui.html
-- Billing Service: http://localhost:8084/swagger-ui.html
-- Pharmacy Service: http://localhost:8085/swagger-ui.html
+1. **Open Jenkins**: http://localhost:8888
 
-## Default Credentials
+2. **Add Credentials** (Manage Jenkins → Credentials → System → Global):
+   - `github-credentials`: Username with password (GitHub)
+   - `nexus-credentials`: Username with password (admin / nexus-password)
+   - `nexus-docker-credentials`: Username with password (admin / nexus-password)
 
-| Username | Password | Role  |
-|----------|----------|-------|
-| admin    | admin123 | ADMIN |
+3. **Create Pipeline Job**:
+   - New Item → "IHMS-Build" → Pipeline → OK
+   - Check "This project is parameterized" (parameters auto-load from Jenkinsfile)
+   - Pipeline → Definition: "Pipeline script from SCM"
+   - SCM: Git
+   - Repository URL: `https://github.com/gopigopi096/ai_project_test.git`
+   - Credentials: `github-credentials`
+   - Script Path: `Jenkinsfile.selectable`
+   - Save
 
-## Jenkins CI/CD Pipeline
+4. **Run Pipeline**:
+   - Click "Build with Parameters"
+   - Select BUILD_SCOPE or individual services
+   - Click Build
 
-The project includes a complete CI/CD pipeline (`Jenkinsfile`) that:
+### Build Parameters
 
-1. **Builds** all Spring Boot services
-2. **Runs** unit tests
-3. **Builds** Angular frontend
-4. **Creates** Docker images
-5. **Pushes** to Nexus Docker Registry
-6. **Deploys** to Dev/Staging/Production environments
+| Parameter | Description |
+|-----------|-------------|
+| BUILD_SCOPE | ALL, ALL_BACKEND, ALL_FRONTEND, SELECT_INDIVIDUAL |
+| BUILD_DISCOVERY_SERVICE | Build Eureka Discovery Service |
+| BUILD_GATEWAY_SERVICE | Build API Gateway |
+| BUILD_AUTH_SERVICE | Build Authentication Service |
+| BUILD_PATIENT_SERVICE | Build Patient Management |
+| BUILD_APPOINTMENT_SERVICE | Build Appointment Scheduling |
+| BUILD_BILLING_SERVICE | Build Billing Service |
+| BUILD_PHARMACY_SERVICE | Build Pharmacy/Inventory |
+| BUILD_FRONTEND | Build Angular Portal |
+| DEPLOY_TO_NEXUS | Upload JARs to Nexus Maven |
+| DEPLOY_DOCKER_TO_NEXUS | Push Docker images to Nexus |
+| DEPLOY_TO_LOCAL_DOCKER | Deploy to local Docker |
+| RUN_TESTS | Run tests during build |
 
-### Pipeline Stages
-- Checkout
-- Build & Test
-- Code Quality (SonarQube)
-- Build Angular Frontend
-- Build Docker Images
-- Push to Nexus Registry
-- Deploy to Dev (develop branch)
-- Deploy to Staging (main branch)
-- Deploy to Production (tagged releases)
+## 📦 Nexus Repository Setup
 
-## Environment Variables
+### Initial Configuration
 
-| Variable      | Description                  | Default                |
-|---------------|------------------------------|------------------------|
-| DB_HOST       | Database hostname            | localhost              |
-| DB_PORT       | Database port                | 5432                   |
-| DB_USER       | Database username            | postgres               |
-| DB_PASSWORD   | Database password            | postgres               |
-| JWT_SECRET    | JWT signing secret           | (development default)  |
-| EUREKA_HOST   | Eureka server hostname       | localhost              |
+1. Open http://localhost:8090
+2. Login with `admin` and password from: `docker exec nexus cat /nexus-data/admin.password`
+3. Complete setup wizard (change password)
 
-## License
+### Create Docker Repository
 
-MIT License - see LICENSE file for details.
+1. Settings → Repositories → Create Repository
+2. Select `docker (hosted)`
+3. Configure:
+   - Name: `docker-hosted`
+   - HTTP Port: `8082`
+   - Enable Docker V1 API: ✓
+4. Click Create
+
+### Configure Docker Daemon
+
+```bash
+# Add insecure registry
+sudo tee /etc/docker/daemon.json << 'EOF'
+{
+  "insecure-registries": ["localhost:8091"]
+}
+EOF
+
+# Restart Docker
+sudo systemctl restart docker
+```
+
+## 📁 Project Structure
+
+```
+├── appointment-service/     # Appointment microservice
+├── auth-service/           # Authentication microservice
+├── billing-service/        # Billing microservice
+├── common-lib/             # Shared library
+├── discovery-service/      # Eureka server
+├── frontend/
+│   └── ihms-portal/       # Angular frontend
+├── gateway-service/        # API Gateway
+├── patient-service/        # Patient microservice
+├── pharmacy-service/       # Pharmacy microservice
+├── docker-compose.yml      # Production compose
+├── docker-compose.local.yml # Local development
+├── docker-compose.nexus.yml # Nexus setup
+├── Jenkinsfile             # Standard pipeline
+├── Jenkinsfile.selectable  # Selectable build pipeline
+└── setup-nexus.sh          # Nexus setup script
+```
+
+## 🔐 Security
+
+- JWT-based authentication
+- Spring Security integration
+- Role-based access control (ADMIN, DOCTOR, NURSE, PATIENT)
+
+## 📝 API Documentation
+
+After starting services, access Swagger UI:
+- Gateway: http://localhost:8080/swagger-ui.html
+- Individual services: http://localhost:{port}/swagger-ui.html
+
+## 🛠️ Development
+
+### Build Individual Service
+```bash
+./gradlew :auth-service:build
+```
+
+### Run Individual Service
+```bash
+./gradlew :auth-service:bootRun
+```
+
+### Run Tests
+```bash
+./gradlew test
+```
+
+## 📞 Support
+
+For issues, please create a GitHub issue or contact the development team.
 

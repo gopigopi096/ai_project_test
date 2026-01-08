@@ -47,7 +47,10 @@ pipeline {
     stages {
         stage('Checkout') {
             steps {
-                git branch: 'main', url: 'git@github.com:gopigopi096/ai_project_test.git', credentialsId: 'github-ssh-key'
+                // Use HTTPS with credentials or SSH with key
+                git branch: 'main',
+                    url: 'https://github.com/gopigopi096/ai_project_test.git',
+                    credentialsId: 'github-credentials'
                 script {
                     env.GIT_COMMIT_SHORT = sh(script: 'git rev-parse --short HEAD 2>/dev/null || echo "local"', returnStdout: true).trim()
                     env.BUILD_VERSION = "1.0.0-${env.GIT_COMMIT_SHORT}"

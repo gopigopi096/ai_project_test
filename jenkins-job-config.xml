@@ -92,8 +92,8 @@
       <configVersion>2</configVersion>
       <userRemoteConfigs>
         <hudson.plugins.git.UserRemoteConfig>
-          <url>git@github.com:gopigopi096/ai_project_test.git</url>
-          <credentialsId>github-ssh-key</credentialsId>
+          <url>https://github.com/gopigopi096/ai_project_test.git</url>
+          <credentialsId>github-credentials</credentialsId>
         </hudson.plugins.git.UserRemoteConfig>
       </userRemoteConfigs>
       <branches>

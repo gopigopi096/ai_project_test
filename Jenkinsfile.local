@@ -1,0 +1,104 @@
+pipeline {
+    agent any
+
+    environment {
+        JAVA_HOME = '/usr/lib/jvm/java-17-openjdk-amd64'
+        PATH = "${JAVA_HOME}/bin:/usr/bin:${env.PATH}"
+        GRADLE_OPTS = '-Dorg.gradle.daemon=false'
+    }
+
+    stages {
+        stage('Checkout') {
+            steps {
+                checkout scm
+                script {
+                    env.GIT_COMMIT_SHORT = sh(script: 'git rev-parse --short HEAD 2>/dev/null || echo "local"', returnStdout: true).trim()
+                    echo "Building commit: ${env.GIT_COMMIT_SHORT}"
+                }
+            }
+        }
+
+        stage('Build Backend') {
+            steps {
+                sh 'chmod +x gradlew'
+                sh './gradlew clean build -x test --no-daemon'
+            }
+        }
+
+        stage('Build Frontend') {
+            steps {
+                dir('frontend/ihms-portal') {
+                    sh '/usr/bin/node /usr/lib/node_modules/npm/bin/npm-cli.js ci'
+                    sh '/usr/bin/node node_modules/.bin/ng build --configuration=production'
+                }
+            }
+        }
+
+        stage('Build Docker Images') {
+            steps {
+                script {
+                    sh 'docker-compose -f docker-compose.local.yml build --parallel'
+                }
+            }
+        }
+
+        stage('Deploy with Docker Compose') {
+            steps {
+                script {
+                    // Stop existing containers
+                    sh 'docker-compose -f docker-compose.local.yml down --remove-orphans || true'
+
+                    // Start databases first
+                    sh 'docker-compose -f docker-compose.local.yml up -d auth-db patient-db appointment-db billing-db pharmacy-db'
+                    sh 'sleep 15'
+
+                    // Start all services
+                    sh 'docker-compose -f docker-compose.local.yml up -d'
+
+                    // Wait for services to be ready
+                    sh 'sleep 60'
+                }
+            }
+        }
+
+        stage('Verify Deployment') {
+            steps {
+                script {
+                    sh '''
+                        echo "=== Deployed Containers ==="
+                        docker ps --format "table {{.Names}}\\t{{.Status}}"
+
+                        echo ""
+                        echo "=== Service Health Check ==="
+                        for port in 8761 8080 8081 8082 8083 8084 8085; do
+                            status=$(curl -s http://localhost:$port/actuator/health 2>/dev/null | grep -o '"status":"[^"]*"' || echo "DOWN")
+                            echo "Port $port: $status"
+                        done
+
+                        echo ""
+                        echo "Frontend: $(curl -s http://localhost:3000 2>/dev/null | head -1 | grep -q html && echo 'UP' || echo 'DOWN')"
+                    '''
+                }
+            }
+        }
+    }
+
+    post {
+        success {
+            echo '''
+╔═══════════════════════════════════════════════════════════════╗
+║           IHMS Deployment Successful!                        ║
+╠═══════════════════════════════════════════════════════════════╣
+║ Frontend:    http://localhost:3000                           ║
+║ Gateway:     http://localhost:8080                           ║
+║ Eureka:      http://localhost:8761                           ║
+╚═══════════════════════════════════════════════════════════════╝
+            '''
+        }
+        failure {
+            echo 'Pipeline failed! Check logs for details.'
+            sh 'docker-compose -f docker-compose.local.yml logs --tail=50 || true'
+        }
+    }
+}
+

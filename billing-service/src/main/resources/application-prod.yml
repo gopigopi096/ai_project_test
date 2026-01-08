@@ -1,0 +1,13 @@
+spring:
+  datasource:
+    url: jdbc:postgresql://billing-db:5432/ihms_billing
+
+eureka:
+  client:
+    service-url:
+      defaultZone: http://discovery-service:8761/eureka/
+
+logging:
+  level:
+    root: INFO
+

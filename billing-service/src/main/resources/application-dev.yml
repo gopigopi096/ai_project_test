@@ -1,0 +1,10 @@
+spring:
+  datasource:
+    url: jdbc:postgresql://localhost:5432/ihms_billing
+  jpa:
+    show-sql: true
+
+logging:
+  level:
+    com.ihms: DEBUG
+

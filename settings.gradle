@@ -1,0 +1,11 @@
+rootProject.name = 'ihms'
+
+include 'common-lib'
+include 'discovery-service'
+include 'gateway-service'
+include 'auth-service'
+include 'patient-service'
+include 'appointment-service'
+include 'billing-service'
+include 'pharmacy-service'
+

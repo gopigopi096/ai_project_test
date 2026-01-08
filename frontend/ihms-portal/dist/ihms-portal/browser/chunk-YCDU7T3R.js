@@ -1,0 +1,1 @@
+import"./chunk-35PI25VP.js";var n=[{path:"",loadComponent:()=>import("./chunk-564FLEXV.js").then(o=>o.InvoiceListComponent)},{path:"new",loadComponent:()=>import("./chunk-2RBQPNAU.js").then(o=>o.InvoiceFormComponent)},{path:":id",loadComponent:()=>import("./chunk-KIHV2IIC.js").then(o=>o.InvoiceDetailComponent)}];export{n as BILLING_ROUTES};

@@ -1,0 +1,33 @@
+version: '3.8'
+
+services:
+  nexus:
+    image: sonatype/nexus3:latest
+    container_name: nexus
+    restart: unless-stopped
+    ports:
+      - "8090:8081"   # Nexus Web UI (mapped to 8090 to avoid conflict)
+      - "8091:8082"   # Docker Registry (hosted)
+      - "8092:8083"   # Docker Registry (group)
+    volumes:
+      - nexus-data:/nexus-data
+    environment:
+      - INSTALL4J_ADD_VM_PARAMS=-Xms512m -Xmx2g -XX:MaxDirectMemorySize=2g
+    networks:
+      - ihms-network
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8081/service/rest/v1/status"]
+      interval: 30s
+      timeout: 10s
+      retries: 15
+      start_period: 180s
+
+networks:
+  ihms-network:
+    external: true
+    name: jenkins_po_source_ihms-network
+
+volumes:
+  nexus-data:
+    driver: local
+

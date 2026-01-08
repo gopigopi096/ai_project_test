@@ -1,0 +1,334 @@
+version: '3.8'
+
+services:
+  # PostgreSQL Databases
+  auth-db:
+    image: postgres:15-alpine
+    container_name: ihms-auth-db
+    environment:
+      POSTGRES_DB: ihms_auth
+      POSTGRES_USER: ${DB_USER:-postgres}
+      POSTGRES_PASSWORD: ${DB_PASSWORD:-postgres}
+    ports:
+      - "5433:5432"
+    volumes:
+      - auth-db-data:/var/lib/postgresql/data
+    networks:
+      - ihms-network
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  patient-db:
+    image: postgres:15-alpine
+    container_name: ihms-patient-db
+    environment:
+      POSTGRES_DB: ihms_patient
+      POSTGRES_USER: ${DB_USER:-postgres}
+      POSTGRES_PASSWORD: ${DB_PASSWORD:-postgres}
+    ports:
+      - "5434:5432"
+    volumes:
+      - patient-db-data:/var/lib/postgresql/data
+    networks:
+      - ihms-network
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  appointment-db:
+    image: postgres:15-alpine
+    container_name: ihms-appointment-db
+    environment:
+      POSTGRES_DB: ihms_appointment
+      POSTGRES_USER: ${DB_USER:-postgres}
+      POSTGRES_PASSWORD: ${DB_PASSWORD:-postgres}
+    ports:
+      - "5435:5432"
+    volumes:
+      - appointment-db-data:/var/lib/postgresql/data
+    networks:
+      - ihms-network
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  billing-db:
+    image: postgres:15-alpine
+    container_name: ihms-billing-db
+    environment:
+      POSTGRES_DB: ihms_billing
+      POSTGRES_USER: ${DB_USER:-postgres}
+      POSTGRES_PASSWORD: ${DB_PASSWORD:-postgres}
+    ports:
+      - "5436:5432"
+    volumes:
+      - billing-db-data:/var/lib/postgresql/data
+    networks:
+      - ihms-network
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  pharmacy-db:
+    image: postgres:15-alpine
+    container_name: ihms-pharmacy-db
+    environment:
+      POSTGRES_DB: ihms_pharmacy
+      POSTGRES_USER: ${DB_USER:-postgres}
+      POSTGRES_PASSWORD: ${DB_PASSWORD:-postgres}
+    ports:
+      - "5437:5432"
+    volumes:
+      - pharmacy-db-data:/var/lib/postgresql/data
+    networks:
+      - ihms-network
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  # Discovery Service (Eureka)
+  discovery-service:
+    image: ${DOCKER_REGISTRY:-localhost:5000}/ihms/discovery-service:${TAG:-latest}
+    build:
+      context: ./discovery-service
+      dockerfile: Dockerfile
+    container_name: ihms-discovery
+    ports:
+      - "8761:8761"
+    environment:
+      - SPRING_PROFILES_ACTIVE=prod
+    networks:
+      - ihms-network
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8761/actuator/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+
+  # API Gateway
+  gateway-service:
+    image: ${DOCKER_REGISTRY:-localhost:5000}/ihms/gateway-service:${TAG:-latest}
+    build:
+      context: ./gateway-service
+      dockerfile: Dockerfile
+    container_name: ihms-gateway
+    ports:
+      - "8080:8080"
+    environment:
+      - SPRING_PROFILES_ACTIVE=prod
+      - EUREKA_HOST=discovery-service
+      - JWT_SECRET=${JWT_SECRET}
+    depends_on:
+      discovery-service:
+        condition: service_healthy
+    networks:
+      - ihms-network
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8080/actuator/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+
+  # Auth Service
+  auth-service:
+    image: ${DOCKER_REGISTRY:-localhost:5000}/ihms/auth-service:${TAG:-latest}
+    build:
+      context: .
+      dockerfile: auth-service/Dockerfile
+    container_name: ihms-auth
+    ports:
+      - "8081:8081"
+    environment:
+      - SPRING_PROFILES_ACTIVE=prod
+      - DB_HOST=auth-db
+      - DB_PORT=5432
+      - DB_NAME=ihms_auth
+      - DB_USER=${DB_USER:-postgres}
+      - DB_PASSWORD=${DB_PASSWORD:-postgres}
+      - EUREKA_HOST=discovery-service
+      - JWT_SECRET=${JWT_SECRET}
+    depends_on:
+      auth-db:
+        condition: service_healthy
+      discovery-service:
+        condition: service_healthy
+    networks:
+      - ihms-network
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8081/actuator/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+
+  # Patient Service
+  patient-service:
+    image: ${DOCKER_REGISTRY:-localhost:5000}/ihms/patient-service:${TAG:-latest}
+    build:
+      context: .
+      dockerfile: patient-service/Dockerfile
+    container_name: ihms-patient
+    ports:
+      - "8082:8082"
+    environment:
+      - SPRING_PROFILES_ACTIVE=prod
+      - DB_HOST=patient-db
+      - DB_PORT=5432
+      - DB_NAME=ihms_patient
+      - DB_USER=${DB_USER:-postgres}
+      - DB_PASSWORD=${DB_PASSWORD:-postgres}
+      - EUREKA_HOST=discovery-service
+      - JWT_SECRET=${JWT_SECRET}
+    depends_on:
+      patient-db:
+        condition: service_healthy
+      discovery-service:
+        condition: service_healthy
+    networks:
+      - ihms-network
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8082/actuator/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+
+  # Appointment Service
+  appointment-service:
+    image: ${DOCKER_REGISTRY:-localhost:5000}/ihms/appointment-service:${TAG:-latest}
+    build:
+      context: .
+      dockerfile: appointment-service/Dockerfile
+    container_name: ihms-appointment
+    ports:
+      - "8083:8083"
+    environment:
+      - SPRING_PROFILES_ACTIVE=prod
+      - DB_HOST=appointment-db
+      - DB_PORT=5432
+      - DB_NAME=ihms_appointment
+      - DB_USER=${DB_USER:-postgres}
+      - DB_PASSWORD=${DB_PASSWORD:-postgres}
+      - EUREKA_HOST=discovery-service
+      - JWT_SECRET=${JWT_SECRET}
+    depends_on:
+      appointment-db:
+        condition: service_healthy
+      discovery-service:
+        condition: service_healthy
+      patient-service:
+        condition: service_started
+    networks:
+      - ihms-network
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8083/actuator/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+
+  # Billing Service
+  billing-service:
+    image: ${DOCKER_REGISTRY:-localhost:5000}/ihms/billing-service:${TAG:-latest}
+    build:
+      context: .
+      dockerfile: billing-service/Dockerfile
+    container_name: ihms-billing
+    ports:
+      - "8084:8084"
+    environment:
+      - SPRING_PROFILES_ACTIVE=prod
+      - DB_HOST=billing-db
+      - DB_PORT=5432
+      - DB_NAME=ihms_billing
+      - DB_USER=${DB_USER:-postgres}
+      - DB_PASSWORD=${DB_PASSWORD:-postgres}
+      - EUREKA_HOST=discovery-service
+      - JWT_SECRET=${JWT_SECRET}
+    depends_on:
+      billing-db:
+        condition: service_healthy
+      discovery-service:
+        condition: service_healthy
+      patient-service:
+        condition: service_started
+    networks:
+      - ihms-network
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8084/actuator/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+
+  # Pharmacy Service
+  pharmacy-service:
+    image: ${DOCKER_REGISTRY:-localhost:5000}/ihms/pharmacy-service:${TAG:-latest}
+    build:
+      context: .
+      dockerfile: pharmacy-service/Dockerfile
+    container_name: ihms-pharmacy
+    ports:
+      - "8085:8085"
+    environment:
+      - SPRING_PROFILES_ACTIVE=prod
+      - DB_HOST=pharmacy-db
+      - DB_PORT=5432
+      - DB_NAME=ihms_pharmacy
+      - DB_USER=${DB_USER:-postgres}
+      - DB_PASSWORD=${DB_PASSWORD:-postgres}
+      - EUREKA_HOST=discovery-service
+      - JWT_SECRET=${JWT_SECRET}
+    depends_on:
+      pharmacy-db:
+        condition: service_healthy
+      discovery-service:
+        condition: service_healthy
+      patient-service:
+        condition: service_started
+    networks:
+      - ihms-network
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8085/actuator/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+
+  # Angular Frontend
+  ihms-portal:
+    image: ${DOCKER_REGISTRY:-localhost:5000}/ihms/ihms-portal:${TAG:-latest}
+    build:
+      context: .
+      dockerfile: frontend/ihms-portal/Dockerfile
+    container_name: ihms-portal
+    ports:
+      - "80:80"
+    depends_on:
+      gateway-service:
+        condition: service_healthy
+    networks:
+      - ihms-network
+    healthcheck:
+      test: ["CMD", "wget", "--no-verbose", "--tries=1", "--spider", "http://localhost/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+
+networks:
+  ihms-network:
+    driver: bridge
+
+volumes:
+  auth-db-data:
+  patient-db-data:
+  appointment-db-data:
+  billing-db-data:
+  pharmacy-db-data:
+

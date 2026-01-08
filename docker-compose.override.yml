@@ -1,0 +1,86 @@
+version: '3.8'
+
+# Development overrides - extends docker-compose.yml
+services:
+  auth-db:
+    ports:
+      - "5433:5432"
+
+  patient-db:
+    ports:
+      - "5434:5432"
+
+  appointment-db:
+    ports:
+      - "5435:5432"
+
+  billing-db:
+    ports:
+      - "5436:5432"
+
+  pharmacy-db:
+    ports:
+      - "5437:5432"
+
+  discovery-service:
+    build:
+      context: ./discovery-service
+    environment:
+      - SPRING_PROFILES_ACTIVE=dev
+    volumes:
+      - ./discovery-service/build/libs:/app
+
+  gateway-service:
+    build:
+      context: ./gateway-service
+    environment:
+      - SPRING_PROFILES_ACTIVE=dev
+      - EUREKA_HOST=discovery-service
+    volumes:
+      - ./gateway-service/build/libs:/app
+
+  auth-service:
+    build:
+      context: .
+      dockerfile: auth-service/Dockerfile
+    environment:
+      - SPRING_PROFILES_ACTIVE=dev
+    volumes:
+      - ./auth-service/build/libs:/app
+
+  patient-service:
+    build:
+      context: .
+      dockerfile: patient-service/Dockerfile
+    environment:
+      - SPRING_PROFILES_ACTIVE=dev
+    volumes:
+      - ./patient-service/build/libs:/app
+
+  appointment-service:
+    build:
+      context: .
+      dockerfile: appointment-service/Dockerfile
+    environment:
+      - SPRING_PROFILES_ACTIVE=dev
+    volumes:
+      - ./appointment-service/build/libs:/app
+
+  billing-service:
+    build:
+      context: .
+      dockerfile: billing-service/Dockerfile
+    environment:
+      - SPRING_PROFILES_ACTIVE=dev
+    volumes:
+      - ./billing-service/build/libs:/app
+
+  pharmacy-service:
+    build:
+      context: .
+      dockerfile: pharmacy-service/Dockerfile
+    environment:
+      - SPRING_PROFILES_ACTIVE=dev
+    volumes:
+      - ./pharmacy-service/build/libs:/app
+

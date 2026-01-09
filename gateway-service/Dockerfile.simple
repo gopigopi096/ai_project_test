@@ -1,0 +1,14 @@
+# Gateway Service - Using pre-built JAR
+FROM eclipse-temurin:17-jre-alpine
+WORKDIR /app
+RUN addgroup -g 1001 -S appgroup && adduser -u 1001 -S appuser -G appgroup
+COPY build/libs/*-SNAPSHOT.jar app.jar
+RUN chown -R appuser:appgroup /app
+USER appuser
+EXPOSE 8080
+ENV SPRING_PROFILES_ACTIVE=docker
+ENV EUREKA_CLIENT_SERVICEURL_DEFAULTZONE=http://discovery-service:8761/eureka/
+HEALTHCHECK --interval=30s --timeout=3s --start-period=60s --retries=3 \
+    CMD wget --no-verbose --tries=1 --spider http://localhost:8080/actuator/health || exit 1
+ENTRYPOINT ["java", "-jar", "app.jar"]
+

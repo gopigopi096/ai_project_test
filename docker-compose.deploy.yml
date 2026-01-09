@@ -1,0 +1,323 @@
+version: '3.8'
+
+# IHMS Complete Deployment with all services
+# Use: docker-compose -f docker-compose.deploy.yml up -d
+
+services:
+  # ==================== DATABASES ====================
+  auth-db:
+    image: postgres:15-alpine
+    container_name: ihms-auth-db
+    environment:
+      POSTGRES_DB: ihms_auth
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
+    ports:
+      - "5433:5432"
+    volumes:
+      - auth-db-data:/var/lib/postgresql/data
+    networks:
+      - ihms-network
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  patient-db:
+    image: postgres:15-alpine
+    container_name: ihms-patient-db
+    environment:
+      POSTGRES_DB: ihms_patient
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
+    ports:
+      - "5434:5432"
+    volumes:
+      - patient-db-data:/var/lib/postgresql/data
+    networks:
+      - ihms-network
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  appointment-db:
+    image: postgres:15-alpine
+    container_name: ihms-appointment-db
+    environment:
+      POSTGRES_DB: ihms_appointment
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
+    ports:
+      - "5435:5432"
+    volumes:
+      - appointment-db-data:/var/lib/postgresql/data
+    networks:
+      - ihms-network
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  billing-db:
+    image: postgres:15-alpine
+    container_name: ihms-billing-db
+    environment:
+      POSTGRES_DB: ihms_billing
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
+    ports:
+      - "5436:5432"
+    volumes:
+      - billing-db-data:/var/lib/postgresql/data
+    networks:
+      - ihms-network
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  pharmacy-db:
+    image: postgres:15-alpine
+    container_name: ihms-pharmacy-db
+    environment:
+      POSTGRES_DB: ihms_pharmacy
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
+    ports:
+      - "5437:5432"
+    volumes:
+      - pharmacy-db-data:/var/lib/postgresql/data
+    networks:
+      - ihms-network
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  # ==================== DISCOVERY SERVICE ====================
+  discovery-service:
+    build:
+      context: ./discovery-service
+      dockerfile: Dockerfile.simple
+    image: ihms/discovery-service:latest
+    container_name: ihms-discovery-service
+    ports:
+      - "8761:8761"
+    environment:
+      - SPRING_PROFILES_ACTIVE=docker
+    networks:
+      - ihms-network
+    healthcheck:
+      test: ["CMD", "wget", "--no-verbose", "--tries=1", "--spider", "http://localhost:8761/actuator/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+      start_period: 60s
+
+  # ==================== GATEWAY SERVICE ====================
+  gateway-service:
+    build:
+      context: ./gateway-service
+      dockerfile: Dockerfile.simple
+    image: ihms/gateway-service:latest
+    container_name: ihms-gateway-service
+    ports:
+      - "8080:8080"
+    environment:
+      - SPRING_PROFILES_ACTIVE=docker
+      - EUREKA_CLIENT_SERVICEURL_DEFAULTZONE=http://discovery-service:8761/eureka/
+    depends_on:
+      discovery-service:
+        condition: service_healthy
+    networks:
+      - ihms-network
+    healthcheck:
+      test: ["CMD", "wget", "--no-verbose", "--tries=1", "--spider", "http://localhost:8080/actuator/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+      start_period: 60s
+
+  # ==================== AUTH SERVICE ====================
+  auth-service:
+    build:
+      context: ./auth-service
+      dockerfile: Dockerfile.simple
+    image: ihms/auth-service:latest
+    container_name: ihms-auth-service
+    ports:
+      - "8081:8081"
+    environment:
+      - SPRING_PROFILES_ACTIVE=docker
+      - EUREKA_CLIENT_SERVICEURL_DEFAULTZONE=http://discovery-service:8761/eureka/
+      - SPRING_DATASOURCE_URL=jdbc:postgresql://auth-db:5432/ihms_auth
+      - SPRING_DATASOURCE_USERNAME=postgres
+      - SPRING_DATASOURCE_PASSWORD=postgres
+    depends_on:
+      discovery-service:
+        condition: service_healthy
+      auth-db:
+        condition: service_healthy
+    networks:
+      - ihms-network
+    healthcheck:
+      test: ["CMD", "wget", "--no-verbose", "--tries=1", "--spider", "http://localhost:8081/actuator/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+      start_period: 60s
+
+  # ==================== PATIENT SERVICE ====================
+  patient-service:
+    build:
+      context: ./patient-service
+      dockerfile: Dockerfile.simple
+    image: ihms/patient-service:latest
+    container_name: ihms-patient-service
+    ports:
+      - "8082:8082"
+    environment:
+      - SPRING_PROFILES_ACTIVE=docker
+      - EUREKA_CLIENT_SERVICEURL_DEFAULTZONE=http://discovery-service:8761/eureka/
+      - SPRING_DATASOURCE_URL=jdbc:postgresql://patient-db:5432/ihms_patient
+      - SPRING_DATASOURCE_USERNAME=postgres
+      - SPRING_DATASOURCE_PASSWORD=postgres
+    depends_on:
+      discovery-service:
+        condition: service_healthy
+      patient-db:
+        condition: service_healthy
+    networks:
+      - ihms-network
+    healthcheck:
+      test: ["CMD", "wget", "--no-verbose", "--tries=1", "--spider", "http://localhost:8082/actuator/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+      start_period: 60s
+
+  # ==================== APPOINTMENT SERVICE ====================
+  appointment-service:
+    build:
+      context: ./appointment-service
+      dockerfile: Dockerfile.simple
+    image: ihms/appointment-service:latest
+    container_name: ihms-appointment-service
+    ports:
+      - "8083:8083"
+    environment:
+      - SPRING_PROFILES_ACTIVE=docker
+      - EUREKA_CLIENT_SERVICEURL_DEFAULTZONE=http://discovery-service:8761/eureka/
+      - SPRING_DATASOURCE_URL=jdbc:postgresql://appointment-db:5432/ihms_appointment
+      - SPRING_DATASOURCE_USERNAME=postgres
+      - SPRING_DATASOURCE_PASSWORD=postgres
+    depends_on:
+      discovery-service:
+        condition: service_healthy
+      appointment-db:
+        condition: service_healthy
+    networks:
+      - ihms-network
+    healthcheck:
+      test: ["CMD", "wget", "--no-verbose", "--tries=1", "--spider", "http://localhost:8083/actuator/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+      start_period: 60s
+
+  # ==================== BILLING SERVICE ====================
+  billing-service:
+    build:
+      context: ./billing-service
+      dockerfile: Dockerfile.simple
+    image: ihms/billing-service:latest
+    container_name: ihms-billing-service
+    ports:
+      - "8084:8084"
+    environment:
+      - SPRING_PROFILES_ACTIVE=docker
+      - EUREKA_CLIENT_SERVICEURL_DEFAULTZONE=http://discovery-service:8761/eureka/
+      - SPRING_DATASOURCE_URL=jdbc:postgresql://billing-db:5432/ihms_billing
+      - SPRING_DATASOURCE_USERNAME=postgres
+      - SPRING_DATASOURCE_PASSWORD=postgres
+    depends_on:
+      discovery-service:
+        condition: service_healthy
+      billing-db:
+        condition: service_healthy
+    networks:
+      - ihms-network
+    healthcheck:
+      test: ["CMD", "wget", "--no-verbose", "--tries=1", "--spider", "http://localhost:8084/actuator/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+      start_period: 60s
+
+  # ==================== PHARMACY SERVICE ====================
+  pharmacy-service:
+    build:
+      context: ./pharmacy-service
+      dockerfile: Dockerfile.simple
+    image: ihms/pharmacy-service:latest
+    container_name: ihms-pharmacy-service
+    ports:
+      - "8085:8085"
+    environment:
+      - SPRING_PROFILES_ACTIVE=docker
+      - EUREKA_CLIENT_SERVICEURL_DEFAULTZONE=http://discovery-service:8761/eureka/
+      - SPRING_DATASOURCE_URL=jdbc:postgresql://pharmacy-db:5432/ihms_pharmacy
+      - SPRING_DATASOURCE_USERNAME=postgres
+      - SPRING_DATASOURCE_PASSWORD=postgres
+    depends_on:
+      discovery-service:
+        condition: service_healthy
+      pharmacy-db:
+        condition: service_healthy
+    networks:
+      - ihms-network
+    healthcheck:
+      test: ["CMD", "wget", "--no-verbose", "--tries=1", "--spider", "http://localhost:8085/actuator/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+      start_period: 60s
+
+  # ==================== FRONTEND ====================
+  frontend:
+    build:
+      context: ./frontend/ihms-portal
+      dockerfile: Dockerfile
+    image: ihms/frontend:latest
+    container_name: ihms-frontend
+    ports:
+      - "3000:80"
+    depends_on:
+      - gateway-service
+    networks:
+      - ihms-network
+    healthcheck:
+      test: ["CMD", "wget", "--no-verbose", "--tries=1", "--spider", "http://localhost/"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 10s
+
+networks:
+  ihms-network:
+    driver: bridge
+    name: jenkins_po_source_ihms-network
+
+volumes:
+  auth-db-data:
+  patient-db-data:
+  appointment-db-data:
+  billing-db-data:
+  pharmacy-db-data:
+

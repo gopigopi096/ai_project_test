@@ -4,22 +4,22 @@ FROM node:18-alpine as build
 WORKDIR /app
 
 # Copy package files
-COPY frontend/ihms-portal/package*.json ./
+COPY package*.json ./
 
 # Install dependencies
 RUN npm ci
 
 # Copy source code
-COPY frontend/ihms-portal/ ./
+COPY . ./
 
 # Build for production
-RUN npm run build:prod
+RUN npm run build -- --configuration=production || npm run build:prod
 
 # Stage 2: Production
 FROM nginx:alpine
 
 # Copy custom nginx config
-COPY frontend/ihms-portal/nginx.conf /etc/nginx/conf.d/default.conf
+COPY nginx.conf /etc/nginx/conf.d/default.conf
 
 # Copy built application
 COPY --from=build /app/dist/ihms-portal/browser /usr/share/nginx/html

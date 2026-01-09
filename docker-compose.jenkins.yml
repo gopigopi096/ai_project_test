@@ -1,0 +1,46 @@
+version: '3.8'
+
+services:
+  jenkins-docker:
+    image: docker:dind
+    container_name: jenkins-docker
+    privileged: true
+    environment:
+      DOCKER_TLS_CERTDIR: ""
+    command: ["dockerd", "--host=tcp://0.0.0.0:2375", "--host=unix:///var/run/docker.sock"]
+    networks:
+      ihms-network:
+        aliases:
+          - docker
+    volumes:
+      - jenkins-docker-certs:/certs/client
+      - jenkins-data:/var/jenkins_home
+    restart: unless-stopped
+
+  jenkins-controller:
+    image: jenkins/jenkins:lts-jdk17
+    container_name: jenkins-controller
+    user: root
+    ports:
+      - "8888:8080"
+      - "50000:50000"
+    environment:
+      DOCKER_HOST: tcp://docker:2375
+      DOCKER_TLS_CERTDIR: ""
+    volumes:
+      - jenkins-data:/var/jenkins_home
+      - jenkins-docker-certs:/certs/client:ro
+    networks:
+      - ihms-network
+    depends_on:
+      - jenkins-docker
+    restart: unless-stopped
+
+networks:
+  ihms-network:
+    external: true
+    name: jenkins_po_source_ihms-network
+
+volumes:
+  jenkins-data:
+  jenkins-docker-certs:

@@ -1,0 +1,312 @@
+version: '3.8'
+
+# IHMS Production Docker Compose
+# Pulls images from Nexus Docker Registry via SSH tunnel (localhost:8091)
+#
+# Usage:
+#   1. Ensure SSH tunnel is running: sudo systemctl status nexus-tunnel.service
+#   2. Deploy: docker-compose -f docker-compose.production.yml up -d
+
+x-common-env: &common-env
+  EUREKA_CLIENT_SERVICEURL_DEFAULTZONE: http://discovery-service:8761/eureka/
+  SPRING_PROFILES_ACTIVE: production
+
+services:
+  # ==================== DATABASES ====================
+  auth-db:
+    image: postgres:15-alpine
+    container_name: ihms-prod-auth-db
+    environment:
+      POSTGRES_DB: ihms_auth
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
+    volumes:
+      - auth-db-data:/var/lib/postgresql/data
+    networks:
+      - ihms-production-network
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  patient-db:
+    image: postgres:15-alpine
+    container_name: ihms-prod-patient-db
+    environment:
+      POSTGRES_DB: ihms_patient
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
+    volumes:
+      - patient-db-data:/var/lib/postgresql/data
+    networks:
+      - ihms-production-network
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  appointment-db:
+    image: postgres:15-alpine
+    container_name: ihms-prod-appointment-db
+    environment:
+      POSTGRES_DB: ihms_appointment
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
+    volumes:
+      - appointment-db-data:/var/lib/postgresql/data
+    networks:
+      - ihms-production-network
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  billing-db:
+    image: postgres:15-alpine
+    container_name: ihms-prod-billing-db
+    environment:
+      POSTGRES_DB: ihms_billing
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
+    volumes:
+      - billing-db-data:/var/lib/postgresql/data
+    networks:
+      - ihms-production-network
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  pharmacy-db:
+    image: postgres:15-alpine
+    container_name: ihms-prod-pharmacy-db
+    environment:
+      POSTGRES_DB: ihms_pharmacy
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
+    volumes:
+      - pharmacy-db-data:/var/lib/postgresql/data
+    networks:
+      - ihms-production-network
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  # ==================== DISCOVERY SERVICE (Eureka) ====================
+  discovery-service:
+    image: localhost:8091/ihms/discovery-service:latest
+    container_name: ihms-prod-discovery
+    ports:
+      - "8761:8761"
+    environment:
+      SPRING_PROFILES_ACTIVE: production
+    networks:
+      - ihms-production-network
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8761/actuator/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+      start_period: 60s
+
+  # ==================== GATEWAY SERVICE ====================
+  gateway-service:
+    image: localhost:8091/ihms/gateway-service:latest
+    container_name: ihms-prod-gateway
+    ports:
+      - "8080:8080"
+    environment:
+      <<: *common-env
+    depends_on:
+      discovery-service:
+        condition: service_healthy
+    networks:
+      - ihms-production-network
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8080/actuator/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+      start_period: 60s
+
+  # ==================== AUTH SERVICE ====================
+  auth-service:
+    image: localhost:8091/ihms/auth-service:latest
+    container_name: ihms-prod-auth
+    ports:
+      - "8081:8081"
+    environment:
+      <<: *common-env
+      SPRING_DATASOURCE_URL: jdbc:postgresql://auth-db:5432/ihms_auth
+      SPRING_DATASOURCE_USERNAME: postgres
+      SPRING_DATASOURCE_PASSWORD: postgres
+    depends_on:
+      discovery-service:
+        condition: service_healthy
+      auth-db:
+        condition: service_healthy
+    networks:
+      - ihms-production-network
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8081/actuator/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+      start_period: 60s
+
+  # ==================== PATIENT SERVICE ====================
+  patient-service:
+    image: localhost:8091/ihms/patient-service:latest
+    container_name: ihms-prod-patient
+    ports:
+      - "8082:8082"
+    environment:
+      <<: *common-env
+      SPRING_DATASOURCE_URL: jdbc:postgresql://patient-db:5432/ihms_patient
+      SPRING_DATASOURCE_USERNAME: postgres
+      SPRING_DATASOURCE_PASSWORD: postgres
+    depends_on:
+      discovery-service:
+        condition: service_healthy
+      patient-db:
+        condition: service_healthy
+    networks:
+      - ihms-production-network
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8082/actuator/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+      start_period: 60s
+
+  # ==================== APPOINTMENT SERVICE ====================
+  appointment-service:
+    image: localhost:8091/ihms/appointment-service:latest
+    container_name: ihms-prod-appointment
+    ports:
+      - "8083:8083"
+    environment:
+      <<: *common-env
+      SPRING_DATASOURCE_URL: jdbc:postgresql://appointment-db:5432/ihms_appointment
+      SPRING_DATASOURCE_USERNAME: postgres
+      SPRING_DATASOURCE_PASSWORD: postgres
+    depends_on:
+      discovery-service:
+        condition: service_healthy
+      appointment-db:
+        condition: service_healthy
+    networks:
+      - ihms-production-network
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8083/actuator/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+      start_period: 60s
+
+  # ==================== BILLING SERVICE ====================
+  billing-service:
+    image: localhost:8091/ihms/billing-service:latest
+    container_name: ihms-prod-billing
+    ports:
+      - "8084:8084"
+    environment:
+      <<: *common-env
+      SPRING_DATASOURCE_URL: jdbc:postgresql://billing-db:5432/ihms_billing
+      SPRING_DATASOURCE_USERNAME: postgres
+      SPRING_DATASOURCE_PASSWORD: postgres
+    depends_on:
+      discovery-service:
+        condition: service_healthy
+      billing-db:
+        condition: service_healthy
+    networks:
+      - ihms-production-network
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8084/actuator/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+      start_period: 60s
+
+  # ==================== PHARMACY SERVICE ====================
+  pharmacy-service:
+    image: localhost:8091/ihms/pharmacy-service:latest
+    container_name: ihms-prod-pharmacy
+    ports:
+      - "8085:8085"
+    environment:
+      <<: *common-env
+      SPRING_DATASOURCE_URL: jdbc:postgresql://pharmacy-db:5432/ihms_pharmacy
+      SPRING_DATASOURCE_USERNAME: postgres
+      SPRING_DATASOURCE_PASSWORD: postgres
+    depends_on:
+      discovery-service:
+        condition: service_healthy
+      pharmacy-db:
+        condition: service_healthy
+    networks:
+      - ihms-production-network
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8085/actuator/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+      start_period: 60s
+
+  # ==================== FRONTEND (Angular Portal) ====================
+  ihms-portal:
+    image: localhost:8091/ihms/ihms-portal:latest
+    container_name: ihms-prod-frontend
+    ports:
+      - "3000:80"
+    depends_on:
+      gateway-service:
+        condition: service_healthy
+    networks:
+      - ihms-production-network
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:80"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 30s
+
+# ==================== NETWORKS ====================
+networks:
+  ihms-production-network:
+    driver: bridge
+    name: ihms-production-network
+
+# ==================== VOLUMES ====================
+volumes:
+  auth-db-data:
+    driver: local
+  patient-db-data:
+    driver: local
+  appointment-db-data:
+    driver: local
+  billing-db-data:
+    driver: local
+  pharmacy-db-data:
+    driver: local
+

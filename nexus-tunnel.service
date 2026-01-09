@@ -1,0 +1,74 @@
+[Unit]
+Description=SSH Tunnel to Nexus Docker Registry
+Documentation=https://github.com/gopigopi096/ai_project_test
+After=network.target network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=REPLACE_WITH_USERNAME
+Environment="AUTOSSH_GATETIME=0"
+Environment="AUTOSSH_POLL=60"
+Environment="AUTOSSH_LOGLEVEL=7"
+
+# SSH tunnel command:
+# -M 0          : Disable autossh monitoring (use ServerAlive instead)
+# -N            : Don't execute remote command
+# -L            : Local port forwarding
+# -o options    : SSH options for connection stability
+ExecStart=/usr/bin/autossh -M 0 \
+    -o "ServerAliveInterval=30" \
+    -o "ServerAliveCountMax=3" \
+    -o "StrictHostKeyChecking=accept-new" \
+    -o "ExitOnForwardFailure=yes" \
+    -o "TCPKeepAlive=yes" \
+    -o "IdentitiesOnly=yes" \
+    -N \
+    -L 8091:localhost:8091 \
+    REPLACE_WITH_SSH_USER@REPLACE_WITH_NEXUS_HOST
+
+# Restart configuration
+Restart=always
+RestartSec=10
+
+# Security hardening
+NoNewPrivileges=true
+ProtectSystem=strict
+ProtectHome=read-only
+PrivateTmp=true
+
+[Install]
+WantedBy=multi-user.target
+
+# ==============================================================================
+# INSTALLATION INSTRUCTIONS:
+# ==============================================================================
+#
+# 1. Copy this file to systemd:
+#    sudo cp nexus-tunnel.service /etc/systemd/system/
+#
+# 2. Edit the file and replace placeholders:
+#    sudo nano /etc/systemd/system/nexus-tunnel.service
+#    - Replace REPLACE_WITH_USERNAME with your Linux username
+#    - Replace REPLACE_WITH_SSH_USER with SSH username for Nexus host
+#    - Replace REPLACE_WITH_NEXUS_HOST with Nexus server IP/hostname
+#
+# 3. Ensure SSH key is set up:
+#    ssh-copy-id REPLACE_WITH_SSH_USER@REPLACE_WITH_NEXUS_HOST
+#
+# 4. Test SSH connection manually first:
+#    ssh REPLACE_WITH_SSH_USER@REPLACE_WITH_NEXUS_HOST
+#
+# 5. Enable and start the service:
+#    sudo systemctl daemon-reload
+#    sudo systemctl enable nexus-tunnel.service
+#    sudo systemctl start nexus-tunnel.service
+#
+# 6. Check status:
+#    sudo systemctl status nexus-tunnel.service
+#
+# 7. View logs:
+#    sudo journalctl -u nexus-tunnel.service -f
+#
+# ==============================================================================
+

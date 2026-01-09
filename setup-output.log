@@ -1,0 +1,32 @@
+[0;36m
+╔══════════════════════════════════════════════════════════════════════════╗
+║          IHMS SETUP & PUSH TO NEXUS SCRIPT                               ║
+║          Build Docker Images and Push to Nexus Registry                  ║
+╚══════════════════════════════════════════════════════════════════════════╝
+[0m
+[1;33mThis script will:[0m
+  1. Create Docker network
+  2. Start Nexus Repository Manager
+  3. Configure Docker for insecure registry
+  4. Create Nexus Docker hosted repository
+  5. Build all services with Gradle
+  6. Build Docker images
+  7. Push Docker images to Nexus
+  8. Verify images in Nexus
+
+Continue? (y/n): 
+
+[0;34m══════════════════════════════════════════════════════════════[0m
+[0;34m  STEP 1: Creating Docker Network[0m
+[0;34m══════════════════════════════════════════════════════════════[0m
+[0;32m✅ Network 'jenkins_po_source_ihms-network' already exists[0m
+
+[0;34m══════════════════════════════════════════════════════════════[0m
+[0;34m  STEP 2: Starting Nexus Repository Manager[0m
+[0;34m══════════════════════════════════════════════════════════════[0m
+[0;32m✅ Nexus is already running[0m
+[1;33m⏳ Waiting for Nexus to be ready...[0m
+[0;32m✅ Nexus is ready![0m
+[1;33m⚠️  Could not retrieve password automatically.[0m
+[1;33m   You may have already changed the password.[0m
+[1;33m   Please enter your Nexus admin password:[0m

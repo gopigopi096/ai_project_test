@@ -292,16 +292,17 @@ services:
     networks:
       - ihms-network
     healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost:8085/actuator/health"]
+      test: ["CMD-SHELL", "wget -q --spider http://localhost:8085/actuator/health || exit 1"]
       interval: 30s
       timeout: 10s
-      retries: 5
+      retries: 10
+      start_period: 60s
 
   # Angular Frontend
   ihms-portal:
     build:
-      context: .
-      dockerfile: frontend/ihms-portal/Dockerfile
+      context: ./frontend/ihms-portal
+      dockerfile: Dockerfile
     container_name: ihms-portal
     ports:
       - "3000:80"
@@ -311,10 +312,11 @@ services:
     networks:
       - ihms-network
     healthcheck:
-      test: ["CMD", "wget", "--no-verbose", "--tries=1", "--spider", "http://localhost/health"]
+      test: ["CMD", "wget", "--no-verbose", "--tries=1", "--spider", "http://localhost/"]
       interval: 30s
       timeout: 10s
       retries: 3
+      start_period: 30s
 
 networks:
   ihms-network:

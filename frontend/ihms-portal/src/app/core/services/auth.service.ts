@@ -16,6 +16,19 @@ export interface LoginRequest {
   password: string;
 }
 
+export interface ApiResponse<T> {
+  success: boolean;
+  message: string;
+  data: T;
+  timestamp: string;
+}
+
+export interface AuthResponse {
+  token: string;
+  username: string;
+  role: string;
+}
+
 export interface LoginResponse {
   accessToken: string;
   refreshToken: string;
@@ -47,19 +60,32 @@ export class AuthService {
     private router: Router
   ) {}
 
-  login(credentials: LoginRequest): Observable<LoginResponse> {
-    return this.http.post<LoginResponse>(`${environment.authUrl}/login`, credentials)
+  login(credentials: LoginRequest): Observable<ApiResponse<AuthResponse>> {
+    return this.http.post<ApiResponse<AuthResponse>>(`${environment.authUrl}/login`, credentials)
       .pipe(
         tap(response => {
-          this.storeTokens(response.accessToken, response.refreshToken);
-          this.storeUser(response.user);
-          this.currentUserSubject.next(response.user);
+          if (response.success && response.data) {
+            const token = response.data.token;
+            const user: User = {
+              id: 0,
+              username: response.data.username,
+              email: '',
+              roles: [response.data.role || 'USER']
+            };
+            this.storeTokens(token, token); // Use same token for refresh
+            this.storeUser(user);
+            this.currentUserSubject.next(user);
+          }
         })
       );
   }
 
-  register(request: RegisterRequest): Observable<any> {
-    return this.http.post(`${environment.authUrl}/register`, request);
+  register(request: RegisterRequest): Observable<ApiResponse<AuthResponse>> {
+    const registerPayload = {
+      ...request,
+      role: 'USER'
+    };
+    return this.http.post<ApiResponse<AuthResponse>>(`${environment.authUrl}/register`, registerPayload);
   }
 
   logout(): void {

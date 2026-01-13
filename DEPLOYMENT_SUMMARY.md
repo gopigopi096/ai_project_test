@@ -44,8 +44,8 @@
 ## 🌐 Access URLs
 
 ### Application
-- **Frontend Portal**: http://localhost:3000
-- **API Gateway**: http://localhost:8080
+- **Frontend Portal**: http://localhost:8080
+- **API Gateway**: (internal only - accessed via frontend)
 - **Eureka Dashboard**: http://localhost:8761
 
 ### CI/CD

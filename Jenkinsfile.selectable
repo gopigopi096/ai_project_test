@@ -215,20 +215,20 @@ ACTION: ${params.SERVICE_ACTION}
             steps {
                 script {
                     def svcs = [
-                        ['discovery-service', 'ihms-discovery-service', 8761, env.BUILD_DISCOVERY],
-                        ['gateway-service', 'ihms-gateway-service', 8080, env.BUILD_GATEWAY],
-                        ['auth-service', 'ihms-auth-service', 8081, env.BUILD_AUTH],
-                        ['patient-service', 'ihms-patient-service', 8082, env.BUILD_PATIENT],
-                        ['appointment-service', 'ihms-appointment-service', 8083, env.BUILD_APPOINTMENT],
-                        ['billing-service', 'ihms-billing-service', 8084, env.BUILD_BILLING],
-                        ['pharmacy-service', 'ihms-pharmacy-service', 8085, env.BUILD_PHARMACY]
+                        ['discovery-service', 'ihms-discovery-service', 8761, 8761, env.BUILD_DISCOVERY],
+                        ['gateway-service', 'ihms-gateway-service', 8080, 8080, env.BUILD_GATEWAY],
+                        ['auth-service', 'ihms-auth-service', 8081, 8080, env.BUILD_AUTH],
+                        ['patient-service', 'ihms-patient-service', 8082, 8080, env.BUILD_PATIENT],
+                        ['appointment-service', 'ihms-appointment-service', 8083, 8080, env.BUILD_APPOINTMENT],
+                        ['billing-service', 'ihms-billing-service', 8084, 8080, env.BUILD_BILLING],
+                        ['pharmacy-service', 'ihms-pharmacy-service', 8085, 8080, env.BUILD_PHARMACY]
                     ]
                     svcs.each { s ->
-                        if (s[3] == 'true') {
+                        if (s[4] == 'true') {
                             sh """
                                 docker stop ${s[1]} 2>/dev/null || true
                                 docker rm ${s[1]} 2>/dev/null || true
-                                docker run -d --name ${s[1]} --network jenkins_po_source_ihms-network -p ${s[2]}:${s[2]} -e SPRING_PROFILES_ACTIVE=docker -e EUREKA_CLIENT_SERVICEURL_DEFAULTZONE=http://ihms-discovery-service:8761/eureka/ --restart unless-stopped ${DOCKER_REGISTRY}/ihms/${s[0]}:${env.DOCKER_TAG}
+                                docker run -d --name ${s[1]} --network jenkins_po_source_ihms-network -p ${s[2]}:${s[3]} -e SPRING_PROFILES_ACTIVE=docker -e EUREKA_CLIENT_SERVICEURL_DEFAULTZONE=http://ihms-discovery-service:8761/eureka/ --restart unless-stopped ${DOCKER_REGISTRY}/ihms/${s[0]}:${env.DOCKER_TAG}
                             """
                         }
                     }
@@ -236,7 +236,7 @@ ACTION: ${params.SERVICE_ACTION}
                         sh """
                             docker stop ihms-frontend 2>/dev/null || true
                             docker rm ihms-frontend 2>/dev/null || true
-                            docker run -d --name ihms-frontend --network jenkins_po_source_ihms-network -p 3000:80 --restart unless-stopped ${DOCKER_REGISTRY}/ihms/ihms-portal:${env.DOCKER_TAG}
+                            docker run -d --name ihms-frontend --network jenkins_po_source_ihms-network -p 8080:8080 --restart unless-stopped ${DOCKER_REGISTRY}/ihms/ihms-portal:${env.DOCKER_TAG}
                         """
                     }
                 }
@@ -280,7 +280,7 @@ Service UP:   docker start <container>
 Service DOWN: docker stop <container>
 Rollback:     docker run -d --name <c> <image>:<old-tag>
 ------------------------------------------------------------------------
-Frontend: http://localhost:3000 | Gateway: http://localhost:8080
+Frontend: http://localhost:8080 | Gateway: (internal only)
 Eureka: http://localhost:8761 | Nexus: http://localhost:8090
 ========================================================================
             """

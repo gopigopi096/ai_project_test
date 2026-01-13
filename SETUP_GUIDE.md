@@ -128,8 +128,8 @@ Add these credentials:
 | Jenkins | http://localhost:8888 |
 | Nexus Web UI | http://localhost:8090 |
 | Docker Registry | localhost:8091 |
-| IHMS Frontend | http://localhost:3000 (after deploy) |
-| API Gateway | http://localhost:8080 (after deploy) |
+| IHMS Frontend | http://localhost:8080 (after deploy) |
+| API Gateway | (internal only - accessed via frontend) |
 | Eureka Dashboard | http://localhost:8761 (after deploy) |
 
 ## Deploy Application Locally

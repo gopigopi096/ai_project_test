@@ -63,8 +63,8 @@ docker-compose -f docker-compose.local.yml up -d
 
 | Application | URL |
 |-------------|-----|
-| Frontend | http://localhost:3000 |
-| API Gateway | http://localhost:8080 |
+| Frontend | http://localhost:8080 |
+| API Gateway | (internal only - accessed via frontend) |
 | Eureka Dashboard | http://localhost:8761 |
 | Nexus Repository | http://localhost:8090 |
 | Jenkins | http://localhost:8888 |

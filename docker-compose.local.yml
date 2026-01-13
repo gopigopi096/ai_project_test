@@ -125,8 +125,7 @@ services:
       context: .
       dockerfile: gateway-service/Dockerfile
     container_name: ihms-gateway
-    ports:
-      - "8080:8080"
+    # Gateway is accessed internally via frontend proxy - no external port exposed
     environment:
       - SPRING_PROFILES_ACTIVE=docker
       - EUREKA_HOST=discovery-service
@@ -150,7 +149,7 @@ services:
       dockerfile: auth-service/Dockerfile
     container_name: ihms-auth
     ports:
-      - "8081:8081"
+      - "8081:8080"
     environment:
       - SPRING_PROFILES_ACTIVE=docker
       - EUREKA_HOST=discovery-service
@@ -168,7 +167,7 @@ services:
     networks:
       - ihms-network
     healthcheck:
-      test: ["CMD-SHELL", "wget -q --spider http://localhost:8081/actuator/health || exit 1"]
+      test: ["CMD-SHELL", "wget -q --spider http://localhost:8080/actuator/health || exit 1"]
       interval: 30s
       timeout: 10s
       retries: 10
@@ -181,7 +180,7 @@ services:
       dockerfile: patient-service/Dockerfile
     container_name: ihms-patient
     ports:
-      - "8082:8082"
+      - "8082:8080"
     environment:
       - SPRING_PROFILES_ACTIVE=docker
       - EUREKA_HOST=discovery-service
@@ -199,7 +198,7 @@ services:
     networks:
       - ihms-network
     healthcheck:
-      test: ["CMD-SHELL", "wget -q --spider http://localhost:8082/actuator/health || exit 1"]
+      test: ["CMD-SHELL", "wget -q --spider http://localhost:8080/actuator/health || exit 1"]
       interval: 30s
       timeout: 10s
       retries: 10
@@ -212,7 +211,7 @@ services:
       dockerfile: appointment-service/Dockerfile
     container_name: ihms-appointment
     ports:
-      - "8083:8083"
+      - "8083:8080"
     environment:
       - SPRING_PROFILES_ACTIVE=docker
       - EUREKA_HOST=discovery-service
@@ -230,7 +229,7 @@ services:
     networks:
       - ihms-network
     healthcheck:
-      test: ["CMD-SHELL", "wget -q --spider http://localhost:8083/actuator/health || exit 1"]
+      test: ["CMD-SHELL", "wget -q --spider http://localhost:8080/actuator/health || exit 1"]
       interval: 30s
       timeout: 10s
       retries: 10
@@ -243,7 +242,7 @@ services:
       dockerfile: billing-service/Dockerfile
     container_name: ihms-billing
     ports:
-      - "8084:8084"
+      - "8084:8080"
     environment:
       - SPRING_PROFILES_ACTIVE=docker
       - EUREKA_HOST=discovery-service
@@ -261,7 +260,7 @@ services:
     networks:
       - ihms-network
     healthcheck:
-      test: ["CMD-SHELL", "wget -q --spider http://localhost:8084/actuator/health || exit 1"]
+      test: ["CMD-SHELL", "wget -q --spider http://localhost:8080/actuator/health || exit 1"]
       interval: 30s
       timeout: 10s
       retries: 10
@@ -274,7 +273,7 @@ services:
       dockerfile: pharmacy-service/Dockerfile
     container_name: ihms-pharmacy
     ports:
-      - "8085:8085"
+      - "8085:8080"
     environment:
       - SPRING_PROFILES_ACTIVE=docker
       - EUREKA_HOST=discovery-service
@@ -292,7 +291,7 @@ services:
     networks:
       - ihms-network
     healthcheck:
-      test: ["CMD-SHELL", "wget -q --spider http://localhost:8085/actuator/health || exit 1"]
+      test: ["CMD-SHELL", "wget -q --spider http://localhost:8080/actuator/health || exit 1"]
       interval: 30s
       timeout: 10s
       retries: 10
@@ -305,14 +304,14 @@ services:
       dockerfile: Dockerfile
     container_name: ihms-portal
     ports:
-      - "3000:80"
+      - "8080:8080"
     depends_on:
       gateway-service:
         condition: service_healthy
     networks:
       - ihms-network
     healthcheck:
-      test: ["CMD", "wget", "--no-verbose", "--tries=1", "--spider", "http://localhost/"]
+      test: ["CMD", "wget", "--no-verbose", "--tries=1", "--spider", "http://localhost:8080/"]
       interval: 30s
       timeout: 10s
       retries: 3

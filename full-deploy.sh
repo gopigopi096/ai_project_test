@@ -348,7 +348,7 @@ done
 # Start frontend
 echo "  Starting Frontend..."
 docker-compose -f docker-compose.yml up -d frontend 2>/dev/null || {
-    docker run -d --name ihms-frontend --network jenkins_po_source_ihms-network -p 3000:80 ihms/frontend:latest 2>/dev/null || true
+    docker run -d --name ihms-frontend --network jenkins_po_source_ihms-network -p 8080:8080 ihms/frontend:latest 2>/dev/null || true
 }
 
 sleep 10
@@ -357,12 +357,12 @@ sleep 10
 print_step "DEPLOYMENT COMPLETE!"
 
 echo -e "
-${GREEN}╔══════════════════════════════════════════════════════════════════════════╗
+${GREEN}╔═��═══════════════════════════════════════════════════════════���════════════╗
 ║                     ✅ DEPLOYMENT SUCCESSFUL                              ║
 ╠══════════════════════════════════════════════════════════════════════════╣${NC}
 ${BLUE}║ ACCESS URLS:                                                             ║${NC}
-║   🌐 Frontend:       http://localhost:3000                               ║
-║   🚪 Gateway:        http://localhost:8080                               ║
+║   🌐 Frontend:       http://localhost:8080                               ║
+║   🚪 Gateway:        (internal only - accessed via frontend)             ║
 ║   🔍 Eureka:         http://localhost:8761                               ║
 ║   🔐 Auth Service:   http://localhost:8081                               ║
 ║   👤 Patient:        http://localhost:8082                               ║

@@ -98,8 +98,8 @@ docker ps --format "table {{.Names}}\t{{.Status}}\t{{.Ports}}" | grep -E "ihms|j
 # Service endpoints
 echo -e "\n${GREEN}═════════════════════════════════════════════════════════════════════════${NC}"
 echo -e "${GREEN}ACCESS URLS:${NC}"
-echo -e "  🌐 Frontend:       http://localhost:3000"
-echo -e "  🚪 Gateway:        http://localhost:8080"
+echo -e "  🌐 Frontend:       http://localhost:8080"
+echo -e "  🚪 Gateway:        (internal only - accessed via frontend)"
 echo -e "  🔍 Eureka:         http://localhost:8761"
 echo -e "  🔐 Auth Service:   http://localhost:8081"
 echo -e "  👤 Patient:        http://localhost:8082"

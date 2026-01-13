@@ -204,9 +204,9 @@ docker ps
 
 # Check service health
 curl http://localhost:8761/actuator/health  # Discovery
-curl http://localhost:8080/actuator/health  # Gateway
+curl http://localhost:8080/health           # Frontend (includes gateway via proxy)
 curl http://localhost:8081/actuator/health  # Auth
-curl http://localhost:3000                  # Frontend
+curl http://localhost:8080                  # Frontend
 
 # View logs
 docker-compose -f docker-compose.production.yml logs -f

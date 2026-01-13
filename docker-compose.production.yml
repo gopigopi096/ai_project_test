@@ -125,8 +125,7 @@ services:
   gateway-service:
     image: localhost:8091/ihms/gateway-service:latest
     container_name: ihms-prod-gateway
-    ports:
-      - "8080:8080"
+    # Gateway is accessed internally via frontend proxy - no external port exposed
     environment:
       <<: *common-env
     depends_on:
@@ -147,7 +146,7 @@ services:
     image: localhost:8091/ihms/auth-service:latest
     container_name: ihms-prod-auth
     ports:
-      - "8081:8081"
+      - "8081:8080"
     environment:
       <<: *common-env
       SPRING_DATASOURCE_URL: jdbc:postgresql://auth-db:5432/ihms_auth
@@ -162,7 +161,7 @@ services:
       - ihms-production-network
     restart: unless-stopped
     healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost:8081/actuator/health"]
+      test: ["CMD", "curl", "-f", "http://localhost:8080/actuator/health"]
       interval: 30s
       timeout: 10s
       retries: 5
@@ -173,7 +172,7 @@ services:
     image: localhost:8091/ihms/patient-service:latest
     container_name: ihms-prod-patient
     ports:
-      - "8082:8082"
+      - "8082:8080"
     environment:
       <<: *common-env
       SPRING_DATASOURCE_URL: jdbc:postgresql://patient-db:5432/ihms_patient
@@ -188,7 +187,7 @@ services:
       - ihms-production-network
     restart: unless-stopped
     healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost:8082/actuator/health"]
+      test: ["CMD", "curl", "-f", "http://localhost:8080/actuator/health"]
       interval: 30s
       timeout: 10s
       retries: 5
@@ -199,7 +198,7 @@ services:
     image: localhost:8091/ihms/appointment-service:latest
     container_name: ihms-prod-appointment
     ports:
-      - "8083:8083"
+      - "8083:8080"
     environment:
       <<: *common-env
       SPRING_DATASOURCE_URL: jdbc:postgresql://appointment-db:5432/ihms_appointment
@@ -214,7 +213,7 @@ services:
       - ihms-production-network
     restart: unless-stopped
     healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost:8083/actuator/health"]
+      test: ["CMD", "curl", "-f", "http://localhost:8080/actuator/health"]
       interval: 30s
       timeout: 10s
       retries: 5
@@ -225,7 +224,7 @@ services:
     image: localhost:8091/ihms/billing-service:latest
     container_name: ihms-prod-billing
     ports:
-      - "8084:8084"
+      - "8084:8080"
     environment:
       <<: *common-env
       SPRING_DATASOURCE_URL: jdbc:postgresql://billing-db:5432/ihms_billing
@@ -240,7 +239,7 @@ services:
       - ihms-production-network
     restart: unless-stopped
     healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost:8084/actuator/health"]
+      test: ["CMD", "curl", "-f", "http://localhost:8080/actuator/health"]
       interval: 30s
       timeout: 10s
       retries: 5
@@ -251,7 +250,7 @@ services:
     image: localhost:8091/ihms/pharmacy-service:latest
     container_name: ihms-prod-pharmacy
     ports:
-      - "8085:8085"
+      - "8085:8080"
     environment:
       <<: *common-env
       SPRING_DATASOURCE_URL: jdbc:postgresql://pharmacy-db:5432/ihms_pharmacy
@@ -266,7 +265,7 @@ services:
       - ihms-production-network
     restart: unless-stopped
     healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost:8085/actuator/health"]
+      test: ["CMD", "curl", "-f", "http://localhost:8080/actuator/health"]
       interval: 30s
       timeout: 10s
       retries: 5
@@ -277,7 +276,7 @@ services:
     image: localhost:8091/ihms/ihms-portal:latest
     container_name: ihms-prod-frontend
     ports:
-      - "3000:80"
+      - "8080:8080"
     depends_on:
       gateway-service:
         condition: service_healthy
@@ -285,7 +284,7 @@ services:
       - ihms-production-network
     restart: unless-stopped
     healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost:80"]
+      test: ["CMD", "curl", "-f", "http://localhost:8080"]
       interval: 30s
       timeout: 10s
       retries: 3

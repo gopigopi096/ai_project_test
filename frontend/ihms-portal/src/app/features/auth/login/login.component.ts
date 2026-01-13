@@ -26,7 +26,7 @@ import { AuthService } from '../../../core/services/auth.service';
     <div class="login-container">
       <mat-card class="login-card">
         <mat-card-header>
-          <mat-card-title>Welcome to IHMS</mat-card-title>
+          <mat-card-title>Welcome to Raster</mat-card-title>
           <mat-card-subtitle>Sign in to your account</mat-card-subtitle>
         </mat-card-header>
         

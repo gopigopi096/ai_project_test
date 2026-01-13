@@ -131,15 +131,26 @@ ACTION: ${params.SERVICE_ACTION}
             post { success { sh "cd frontend/ihms-portal/dist/ihms-portal/browser && tar -czvf ../../../../ihms-portal-${FULL_VERSION}.tar.gz ." } }
         }
         stage('Deploy JARs to Nexus') {
-            when { allOf { expression { params.DEPLOY_TO_NEXUS } expression { env.BUILD_DISCOVERY == 'true' || env.BUILD_GATEWAY == 'true' || env.BUILD_AUTH == 'true' || env.BUILD_PATIENT == 'true' || env.BUILD_APPOINTMENT == 'true' || env.BUILD_BILLING == 'true' || env.BUILD_PHARMACY == 'true' } } }
+            when {
+                expression { params.DEPLOY_TO_NEXUS == true }
+            }
             steps {
                 withCredentials([usernamePassword(credentialsId: "${NEXUS_CREDENTIALS_ID}", usernameVariable: 'NEXUS_USER', passwordVariable: 'NEXUS_PASS')]) {
                     script {
-                        ['discovery-service': env.BUILD_DISCOVERY, 'gateway-service': env.BUILD_GATEWAY, 'auth-service': env.BUILD_AUTH, 'patient-service': env.BUILD_PATIENT, 'appointment-service': env.BUILD_APPOINTMENT, 'billing-service': env.BUILD_BILLING, 'pharmacy-service': env.BUILD_PHARMACY].each { svc, enabled ->
-                            if (enabled == 'true') {
+                        def services = [
+                            ['discovery-service', env.BUILD_DISCOVERY],
+                            ['gateway-service', env.BUILD_GATEWAY],
+                            ['auth-service', env.BUILD_AUTH],
+                            ['patient-service', env.BUILD_PATIENT],
+                            ['appointment-service', env.BUILD_APPOINTMENT],
+                            ['billing-service', env.BUILD_BILLING],
+                            ['pharmacy-service', env.BUILD_PHARMACY]
+                        ]
+                        services.each { svc ->
+                            if (svc[1] == 'true') {
                                 sh """
-                                    JAR=\$(find ${svc}/build/libs -name "*-SNAPSHOT.jar" ! -name "*-plain.jar" | head -1)
-                                    [ -f "\$JAR" ] && curl -u \$NEXUS_USER:\$NEXUS_PASS --upload-file \$JAR "${NEXUS_URL}/repository/${env.NEXUS_REPO}/com/ihms/${svc}/${env.FULL_VERSION}/${svc}-${env.FULL_VERSION}.jar" && echo "Uploaded ${svc}:${env.FULL_VERSION}"
+                                    JAR=\$(find ${svc[0]}/build/libs -name "*-SNAPSHOT.jar" ! -name "*-plain.jar" | head -1)
+                                    [ -f "\$JAR" ] && curl -u \$NEXUS_USER:\$NEXUS_PASS --upload-file \$JAR "${NEXUS_URL}/repository/${env.NEXUS_REPO}/com/ihms/${svc[0]}/${env.FULL_VERSION}/${svc[0]}-${env.FULL_VERSION}.jar" && echo "Uploaded ${svc[0]}:${env.FULL_VERSION}"
                                 """
                             }
                         }
@@ -148,7 +159,9 @@ ACTION: ${params.SERVICE_ACTION}
             }
         }
         stage('Deploy Frontend to Nexus') {
-            when { allOf { expression { params.DEPLOY_TO_NEXUS } expression { env.BUILD_FRONT == 'true' } } }
+            when {
+                expression { params.DEPLOY_TO_NEXUS == true && env.BUILD_FRONT == 'true' }
+            }
             steps {
                 withCredentials([usernamePassword(credentialsId: "${NEXUS_CREDENTIALS_ID}", usernameVariable: 'NEXUS_USER', passwordVariable: 'NEXUS_PASS')]) {
                     sh """
@@ -158,19 +171,30 @@ ACTION: ${params.SERVICE_ACTION}
                 }
             }
         }
-        stage('Build & Push Docker') {
-            when { allOf { expression { params.DEPLOY_DOCKER_TO_NEXUS } expression { env.BUILD_DISCOVERY == 'true' || env.BUILD_GATEWAY == 'true' || env.BUILD_AUTH == 'true' || env.BUILD_PATIENT == 'true' || env.BUILD_APPOINTMENT == 'true' || env.BUILD_BILLING == 'true' || env.BUILD_PHARMACY == 'true' || env.BUILD_FRONT == 'true' } } }
+        stage('Build and Push Docker') {
+            when {
+                expression { params.DEPLOY_DOCKER_TO_NEXUS == true }
+            }
             steps {
                 withCredentials([usernamePassword(credentialsId: "${DOCKER_CREDENTIALS_ID}", usernameVariable: 'DOCKER_USER', passwordVariable: 'DOCKER_PASS')]) {
                     sh "echo \$DOCKER_PASS | docker login ${DOCKER_REGISTRY} -u \$DOCKER_USER --password-stdin || true"
                     script {
-                        ['discovery-service': env.BUILD_DISCOVERY, 'gateway-service': env.BUILD_GATEWAY, 'auth-service': env.BUILD_AUTH, 'patient-service': env.BUILD_PATIENT, 'appointment-service': env.BUILD_APPOINTMENT, 'billing-service': env.BUILD_BILLING, 'pharmacy-service': env.BUILD_PHARMACY].each { svc, enabled ->
-                            if (enabled == 'true') {
+                        def services = [
+                            ['discovery-service', env.BUILD_DISCOVERY],
+                            ['gateway-service', env.BUILD_GATEWAY],
+                            ['auth-service', env.BUILD_AUTH],
+                            ['patient-service', env.BUILD_PATIENT],
+                            ['appointment-service', env.BUILD_APPOINTMENT],
+                            ['billing-service', env.BUILD_BILLING],
+                            ['pharmacy-service', env.BUILD_PHARMACY]
+                        ]
+                        services.each { svc ->
+                            if (svc[1] == 'true') {
                                 sh """
-                                    docker build -t ${DOCKER_REGISTRY}/ihms/${svc}:${env.DOCKER_TAG} -t ${DOCKER_REGISTRY}/ihms/${svc}:latest -t ${DOCKER_REGISTRY}/ihms/${svc}:build-${env.BUILD_NUMBER} -f ${svc}/Dockerfile.simple ${svc}
-                                    docker push ${DOCKER_REGISTRY}/ihms/${svc}:${env.DOCKER_TAG} || true
-                                    docker push ${DOCKER_REGISTRY}/ihms/${svc}:latest || true
-                                    docker push ${DOCKER_REGISTRY}/ihms/${svc}:build-${env.BUILD_NUMBER} || true
+                                    docker build -t ${DOCKER_REGISTRY}/ihms/${svc[0]}:${env.DOCKER_TAG} -t ${DOCKER_REGISTRY}/ihms/${svc[0]}:latest -t ${DOCKER_REGISTRY}/ihms/${svc[0]}:build-${env.BUILD_NUMBER} -f ${svc[0]}/Dockerfile.simple ${svc[0]}
+                                    docker push ${DOCKER_REGISTRY}/ihms/${svc[0]}:${env.DOCKER_TAG} || true
+                                    docker push ${DOCKER_REGISTRY}/ihms/${svc[0]}:latest || true
+                                    docker push ${DOCKER_REGISTRY}/ihms/${svc[0]}:build-${env.BUILD_NUMBER} || true
                                 """
                             }
                         }
@@ -187,7 +211,7 @@ ACTION: ${params.SERVICE_ACTION}
             }
         }
         stage('Deploy Services') {
-            when { expression { params.DEPLOY_SERVICES } }
+            when { expression { params.DEPLOY_SERVICES == true } }
             steps {
                 script {
                     def svcs = [
@@ -238,7 +262,11 @@ ACTION: ${params.SERVICE_ACTION}
             }
         }
         stage('Summary') {
-            steps { sh 'docker images | grep ihms || true; echo "---"; docker ps --format "table {{.Names}}\\t{{.Image}}\\t{{.Status}}" | grep ihms || true' }
+            steps {
+                sh 'docker images | grep ihms || true'
+                sh 'echo "---"'
+                sh 'docker ps --format "table {{.Names}}\\t{{.Image}}\\t{{.Status}}" | grep ihms || true'
+            }
         }
     }
     post {
@@ -258,6 +286,10 @@ Eureka: http://localhost:8761 | Nexus: http://localhost:8090
             """
         }
         failure { echo 'Build failed!' }
-        always { sh 'docker logout ${DOCKER_REGISTRY} 2>/dev/null || true'; cleanWs(cleanWhenNotBuilt: false, deleteDirs: true, disableDeferredWipeout: true, notFailBuild: true) }
+        always {
+            sh 'docker logout ${DOCKER_REGISTRY} 2>/dev/null || true'
+            cleanWs(cleanWhenNotBuilt: false, deleteDirs: true, disableDeferredWipeout: true, notFailBuild: true)
+        }
     }
 }
+

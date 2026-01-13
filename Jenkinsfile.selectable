@@ -1,62 +1,55 @@
 pipeline {
     agent any
-
     parameters {
-        // Main build scope selection
-        choice(
-            name: 'BUILD_SCOPE',
-            choices: ['SELECT_INDIVIDUAL', 'ALL', 'ALL_BACKEND', 'ALL_FRONTEND'],
-            description: 'Build scope: SELECT_INDIVIDUAL to pick specific services, or build ALL/ALL_BACKEND/ALL_FRONTEND'
-        )
-
-        // Individual Backend Services Selection
-        booleanParam(name: 'BUILD_DISCOVERY_SERVICE', defaultValue: false, description: '🔍 Build Discovery Service (Eureka)')
-        booleanParam(name: 'BUILD_GATEWAY_SERVICE', defaultValue: false, description: '🚪 Build Gateway Service')
-        booleanParam(name: 'BUILD_AUTH_SERVICE', defaultValue: false, description: '🔐 Build Auth Service')
-        booleanParam(name: 'BUILD_PATIENT_SERVICE', defaultValue: false, description: '👤 Build Patient Service')
-        booleanParam(name: 'BUILD_APPOINTMENT_SERVICE', defaultValue: false, description: '📅 Build Appointment Service')
-        booleanParam(name: 'BUILD_BILLING_SERVICE', defaultValue: false, description: '💰 Build Billing Service')
-        booleanParam(name: 'BUILD_PHARMACY_SERVICE', defaultValue: false, description: '💊 Build Pharmacy Service')
-
-        // Frontend Selection
-        booleanParam(name: 'BUILD_FRONTEND', defaultValue: false, description: '🌐 Build Frontend (Angular Portal)')
-
-        // Deployment Options
-        booleanParam(name: 'DEPLOY_TO_NEXUS', defaultValue: true, description: '📦 Deploy artifacts to Nexus Maven Repository')
-        booleanParam(name: 'DEPLOY_DOCKER_TO_NEXUS', defaultValue: true, description: '🐳 Deploy Docker images to Nexus Docker Registry')
-        booleanParam(name: 'DEPLOY_TO_LOCAL_DOCKER', defaultValue: false, description: '🖥️ Deploy to Local Docker (for testing)')
-        booleanParam(name: 'RUN_TESTS', defaultValue: false, description: '🧪 Run tests during build')
+        choice(name: 'BUILD_SCOPE', choices: ['SELECT_INDIVIDUAL', 'ALL', 'ALL_BACKEND', 'ALL_FRONTEND'], description: 'Build scope')
+        // Version Management - Custom tag support
+        string(name: 'VERSION_TAG', defaultValue: '', description: 'Custom version tag (e.g., v1.0.0). Leave empty for auto-generated')
+        choice(name: 'VERSION_TYPE', choices: ['SNAPSHOT', 'RELEASE'], description: 'Version type')
+        // Backend Services
+        booleanParam(name: 'BUILD_DISCOVERY_SERVICE', defaultValue: false, description: 'Build Discovery Service')
+        booleanParam(name: 'BUILD_GATEWAY_SERVICE', defaultValue: false, description: 'Build Gateway Service')
+        booleanParam(name: 'BUILD_AUTH_SERVICE', defaultValue: false, description: 'Build Auth Service')
+        booleanParam(name: 'BUILD_PATIENT_SERVICE', defaultValue: false, description: 'Build Patient Service')
+        booleanParam(name: 'BUILD_APPOINTMENT_SERVICE', defaultValue: false, description: 'Build Appointment Service')
+        booleanParam(name: 'BUILD_BILLING_SERVICE', defaultValue: false, description: 'Build Billing Service')
+        booleanParam(name: 'BUILD_PHARMACY_SERVICE', defaultValue: false, description: 'Build Pharmacy Service')
+        booleanParam(name: 'BUILD_FRONTEND', defaultValue: false, description: 'Build Frontend')
+        // Deployment
+        booleanParam(name: 'DEPLOY_TO_NEXUS', defaultValue: true, description: 'Deploy to Nexus Maven')
+        booleanParam(name: 'DEPLOY_DOCKER_TO_NEXUS', defaultValue: true, description: 'Deploy Docker to Nexus')
+        booleanParam(name: 'DEPLOY_SERVICES', defaultValue: false, description: 'Deploy services after build')
+        booleanParam(name: 'RUN_TESTS', defaultValue: false, description: 'Run tests')
+        // Service Management
+        choice(name: 'SERVICE_ACTION', choices: ['NONE', 'START', 'STOP', 'RESTART'], description: 'Service action')
     }
-
     environment {
-        JAVA_HOME = '/usr/lib/jvm/java-17-openjdk-amd64'
-        PATH = "${JAVA_HOME}/bin:/usr/bin:${env.PATH}"
+        JAVA_HOME = '/opt/java/openjdk'
+        PATH = "${JAVA_HOME}/bin:/usr/local/bin:/usr/bin:${env.PATH}"
         GRADLE_OPTS = '-Dorg.gradle.daemon=false'
-
-        // Nexus Configuration
-        NEXUS_URL = 'http://localhost:8090'
+        NEXUS_URL = 'http://nexus:8081'
+        NEXUS_EXTERNAL_URL = 'http://localhost:8090'
         NEXUS_REPOSITORY = 'maven-releases'
         NEXUS_SNAPSHOT_REPOSITORY = 'maven-snapshots'
         NEXUS_CREDENTIALS_ID = 'nexus-credentials'
-
-        // Docker Registry (Nexus Docker)
         DOCKER_REGISTRY = 'localhost:8091'
         DOCKER_CREDENTIALS_ID = 'nexus-docker-credentials'
     }
-
     stages {
         stage('Checkout') {
             steps {
-                // Use HTTPS with credentials or SSH with key
-                git branch: 'main',
-                    url: 'https://github.com/gopigopi096/ai_project_test.git',
-                    credentialsId: 'github-credentials'
+                git branch: 'main', url: 'https://github.com/gopigopi096/ai_project_test.git', credentialsId: 'github-credentials'
                 script {
-                    env.GIT_COMMIT_SHORT = sh(script: 'git rev-parse --short HEAD 2>/dev/null || echo "local"', returnStdout: true).trim()
-                    env.BUILD_VERSION = "1.0.0-${env.GIT_COMMIT_SHORT}"
+                    env.GIT_COMMIT_SHORT = sh(script: 'git rev-parse --short HEAD', returnStdout: true).trim()
                     env.BUILD_TIMESTAMP = sh(script: 'date +%Y%m%d%H%M%S', returnStdout: true).trim()
-
-                    // Determine which services to build based on scope and individual selections
+                    // Custom version tag or auto-generate
+                    if (params.VERSION_TAG?.trim()) {
+                        env.VERSION_TAG = params.VERSION_TAG.trim()
+                    } else {
+                        env.VERSION_TAG = "${env.BUILD_NUMBER}-${env.GIT_COMMIT_SHORT}"
+                    }
+                    env.DOCKER_TAG = env.VERSION_TAG
+                    env.FULL_VERSION = params.VERSION_TYPE == 'RELEASE' ? env.VERSION_TAG : "${env.VERSION_TAG}-SNAPSHOT"
+                    env.NEXUS_REPO = params.VERSION_TYPE == 'RELEASE' ? env.NEXUS_REPOSITORY : env.NEXUS_SNAPSHOT_REPOSITORY
                     env.BUILD_DISCOVERY = (params.BUILD_SCOPE == 'ALL' || params.BUILD_SCOPE == 'ALL_BACKEND' || params.BUILD_DISCOVERY_SERVICE) ? 'true' : 'false'
                     env.BUILD_GATEWAY = (params.BUILD_SCOPE == 'ALL' || params.BUILD_SCOPE == 'ALL_BACKEND' || params.BUILD_GATEWAY_SERVICE) ? 'true' : 'false'
                     env.BUILD_AUTH = (params.BUILD_SCOPE == 'ALL' || params.BUILD_SCOPE == 'ALL_BACKEND' || params.BUILD_AUTH_SERVICE) ? 'true' : 'false'
@@ -65,248 +58,88 @@ pipeline {
                     env.BUILD_BILLING = (params.BUILD_SCOPE == 'ALL' || params.BUILD_SCOPE == 'ALL_BACKEND' || params.BUILD_BILLING_SERVICE) ? 'true' : 'false'
                     env.BUILD_PHARMACY = (params.BUILD_SCOPE == 'ALL' || params.BUILD_SCOPE == 'ALL_BACKEND' || params.BUILD_PHARMACY_SERVICE) ? 'true' : 'false'
                     env.BUILD_FRONT = (params.BUILD_SCOPE == 'ALL' || params.BUILD_SCOPE == 'ALL_FRONTEND' || params.BUILD_FRONTEND) ? 'true' : 'false'
-
                     echo """
-╔══════════════════════════════════════════════════════════════════════════╗
-║                    IHMS BUILD CONFIGURATION                              ║
-╠══════════════════════════════════════════════════════════════════════════╣
-║ Build Scope:    ${params.BUILD_SCOPE}
-║ Version:        ${env.BUILD_VERSION}
-║ Commit:         ${env.GIT_COMMIT_SHORT}
-║ Timestamp:      ${env.BUILD_TIMESTAMP}
-╠══════════════════════════════════════════════════════════════════════════╣
-║ BACKEND SERVICES TO BUILD:                                               ║
-║   🔍 Discovery Service:   ${env.BUILD_DISCOVERY == 'true' ? '✅ YES' : '❌ NO'}
-║   🚪 Gateway Service:     ${env.BUILD_GATEWAY == 'true' ? '✅ YES' : '❌ NO'}
-║   🔐 Auth Service:        ${env.BUILD_AUTH == 'true' ? '✅ YES' : '❌ NO'}
-║   👤 Patient Service:     ${env.BUILD_PATIENT == 'true' ? '✅ YES' : '❌ NO'}
-║   📅 Appointment Service: ${env.BUILD_APPOINTMENT == 'true' ? '✅ YES' : '❌ NO'}
-║   💰 Billing Service:     ${env.BUILD_BILLING == 'true' ? '✅ YES' : '❌ NO'}
-║   💊 Pharmacy Service:    ${env.BUILD_PHARMACY == 'true' ? '✅ YES' : '❌ NO'}
-╠══════════════════════════════════════════════════════════════════════════╣
-║ FRONTEND:                                                                ║
-║   🌐 Angular Portal:      ${env.BUILD_FRONT == 'true' ? '✅ YES' : '❌ NO'}
-╠══════════════════════════════════════════════════════════════════════════╣
-║ DEPLOYMENT OPTIONS:                                                      ║
-║   📦 Deploy to Nexus Maven:    ${params.DEPLOY_TO_NEXUS ? '✅ YES' : '❌ NO'}
-║   🐳 Deploy Docker to Nexus:   ${params.DEPLOY_DOCKER_TO_NEXUS ? '✅ YES' : '❌ NO'}
-║   🖥️ Deploy to Local Docker:   ${params.DEPLOY_TO_LOCAL_DOCKER ? '✅ YES' : '❌ NO'}
-║   🧪 Run Tests:                ${params.RUN_TESTS ? '✅ YES' : '❌ NO'}
-╚══════════════════════════════════════════════════════════════════════════╝
+========================================================================
+                    IHMS BUILD CONFIGURATION
+========================================================================
+VERSION: ${env.VERSION_TAG} | FULL: ${env.FULL_VERSION} | TYPE: ${params.VERSION_TYPE}
+DOCKER TAG: ${env.DOCKER_TAG} | BUILD: ${env.BUILD_NUMBER} | COMMIT: ${env.GIT_COMMIT_SHORT}
+------------------------------------------------------------------------
+SERVICES: Discovery=${env.BUILD_DISCOVERY} Gateway=${env.BUILD_GATEWAY} Auth=${env.BUILD_AUTH}
+          Patient=${env.BUILD_PATIENT} Appointment=${env.BUILD_APPOINTMENT}
+          Billing=${env.BUILD_BILLING} Pharmacy=${env.BUILD_PHARMACY} Frontend=${env.BUILD_FRONT}
+DEPLOY: Nexus=${params.DEPLOY_TO_NEXUS} Docker=${params.DEPLOY_DOCKER_TO_NEXUS} Services=${params.DEPLOY_SERVICES}
+ACTION: ${params.SERVICE_ACTION}
+========================================================================
                     """
                 }
             }
         }
-
-        // ======================== BACKEND SERVICE BUILDS ========================
-
         stage('Build Common Library') {
-            when {
-                expression {
-                    env.BUILD_DISCOVERY == 'true' || env.BUILD_GATEWAY == 'true' ||
-                    env.BUILD_AUTH == 'true' || env.BUILD_PATIENT == 'true' ||
-                    env.BUILD_APPOINTMENT == 'true' || env.BUILD_BILLING == 'true' ||
-                    env.BUILD_PHARMACY == 'true'
-                }
-            }
+            when { expression { env.BUILD_DISCOVERY == 'true' || env.BUILD_GATEWAY == 'true' || env.BUILD_AUTH == 'true' || env.BUILD_PATIENT == 'true' || env.BUILD_APPOINTMENT == 'true' || env.BUILD_BILLING == 'true' || env.BUILD_PHARMACY == 'true' } }
             steps {
-                echo '📚 Building Common Library...'
-                sh 'chmod +x gradlew'
-                sh './gradlew :common-lib:clean :common-lib:build -x test --no-daemon'
+                sh 'chmod +x gradlew && ./gradlew :common-lib:clean :common-lib:build -x test --no-daemon'
             }
         }
-
-        stage('Build Discovery Service') {
-            when { expression { env.BUILD_DISCOVERY == 'true' } }
-            steps {
-                echo '🔍 Building Discovery Service...'
-                script {
-                    def testFlag = params.RUN_TESTS ? '' : '-x test'
-                    sh "./gradlew :discovery-service:clean :discovery-service:build ${testFlag} --no-daemon"
+        stage('Build Backend') {
+            parallel {
+                stage('Discovery') {
+                    when { expression { env.BUILD_DISCOVERY == 'true' } }
+                    steps { sh "./gradlew :discovery-service:clean :discovery-service:build -x test --no-daemon" }
+                    post { success { archiveArtifacts artifacts: 'discovery-service/build/libs/*-SNAPSHOT.jar', fingerprint: true, allowEmptyArchive: true } }
                 }
-            }
-            post {
-                success {
-                    echo '✅ Discovery Service build successful!'
-                    archiveArtifacts artifacts: 'discovery-service/build/libs/*-SNAPSHOT.jar', fingerprint: true, allowEmptyArchive: true
+                stage('Gateway') {
+                    when { expression { env.BUILD_GATEWAY == 'true' } }
+                    steps { sh "./gradlew :gateway-service:clean :gateway-service:build -x test --no-daemon" }
+                    post { success { archiveArtifacts artifacts: 'gateway-service/build/libs/*-SNAPSHOT.jar', fingerprint: true, allowEmptyArchive: true } }
                 }
-                failure { echo '❌ Discovery Service build failed!' }
+                stage('Auth') {
+                    when { expression { env.BUILD_AUTH == 'true' } }
+                    steps { sh "./gradlew :auth-service:clean :auth-service:build -x test --no-daemon" }
+                    post { success { archiveArtifacts artifacts: 'auth-service/build/libs/*-SNAPSHOT.jar', fingerprint: true, allowEmptyArchive: true } }
+                }
+                stage('Patient') {
+                    when { expression { env.BUILD_PATIENT == 'true' } }
+                    steps { sh "./gradlew :patient-service:clean :patient-service:build -x test --no-daemon" }
+                    post { success { archiveArtifacts artifacts: 'patient-service/build/libs/*-SNAPSHOT.jar', fingerprint: true, allowEmptyArchive: true } }
+                }
+                stage('Appointment') {
+                    when { expression { env.BUILD_APPOINTMENT == 'true' } }
+                    steps { sh "./gradlew :appointment-service:clean :appointment-service:build -x test --no-daemon" }
+                    post { success { archiveArtifacts artifacts: 'appointment-service/build/libs/*-SNAPSHOT.jar', fingerprint: true, allowEmptyArchive: true } }
+                }
+                stage('Billing') {
+                    when { expression { env.BUILD_BILLING == 'true' } }
+                    steps { sh "./gradlew :billing-service:clean :billing-service:build -x test --no-daemon" }
+                    post { success { archiveArtifacts artifacts: 'billing-service/build/libs/*-SNAPSHOT.jar', fingerprint: true, allowEmptyArchive: true } }
+                }
+                stage('Pharmacy') {
+                    when { expression { env.BUILD_PHARMACY == 'true' } }
+                    steps { sh "./gradlew :pharmacy-service:clean :pharmacy-service:build -x test --no-daemon" }
+                    post { success { archiveArtifacts artifacts: 'pharmacy-service/build/libs/*-SNAPSHOT.jar', fingerprint: true, allowEmptyArchive: true } }
+                }
             }
         }
-
-        stage('Build Gateway Service') {
-            when { expression { env.BUILD_GATEWAY == 'true' } }
-            steps {
-                echo '🚪 Building Gateway Service...'
-                script {
-                    def testFlag = params.RUN_TESTS ? '' : '-x test'
-                    sh "./gradlew :gateway-service:clean :gateway-service:build ${testFlag} --no-daemon"
-                }
-            }
-            post {
-                success {
-                    echo '✅ Gateway Service build successful!'
-                    archiveArtifacts artifacts: 'gateway-service/build/libs/*-SNAPSHOT.jar', fingerprint: true, allowEmptyArchive: true
-                }
-                failure { echo '❌ Gateway Service build failed!' }
-            }
-        }
-
-        stage('Build Auth Service') {
-            when { expression { env.BUILD_AUTH == 'true' } }
-            steps {
-                echo '🔐 Building Auth Service...'
-                script {
-                    def testFlag = params.RUN_TESTS ? '' : '-x test'
-                    sh "./gradlew :auth-service:clean :auth-service:build ${testFlag} --no-daemon"
-                }
-            }
-            post {
-                success {
-                    echo '✅ Auth Service build successful!'
-                    archiveArtifacts artifacts: 'auth-service/build/libs/*-SNAPSHOT.jar', fingerprint: true, allowEmptyArchive: true
-                }
-                failure { echo '❌ Auth Service build failed!' }
-            }
-        }
-
-        stage('Build Patient Service') {
-            when { expression { env.BUILD_PATIENT == 'true' } }
-            steps {
-                echo '👤 Building Patient Service...'
-                script {
-                    def testFlag = params.RUN_TESTS ? '' : '-x test'
-                    sh "./gradlew :patient-service:clean :patient-service:build ${testFlag} --no-daemon"
-                }
-            }
-            post {
-                success {
-                    echo '✅ Patient Service build successful!'
-                    archiveArtifacts artifacts: 'patient-service/build/libs/*-SNAPSHOT.jar', fingerprint: true, allowEmptyArchive: true
-                }
-                failure { echo '❌ Patient Service build failed!' }
-            }
-        }
-
-        stage('Build Appointment Service') {
-            when { expression { env.BUILD_APPOINTMENT == 'true' } }
-            steps {
-                echo '📅 Building Appointment Service...'
-                script {
-                    def testFlag = params.RUN_TESTS ? '' : '-x test'
-                    sh "./gradlew :appointment-service:clean :appointment-service:build ${testFlag} --no-daemon"
-                }
-            }
-            post {
-                success {
-                    echo '✅ Appointment Service build successful!'
-                    archiveArtifacts artifacts: 'appointment-service/build/libs/*-SNAPSHOT.jar', fingerprint: true, allowEmptyArchive: true
-                }
-                failure { echo '❌ Appointment Service build failed!' }
-            }
-        }
-
-        stage('Build Billing Service') {
-            when { expression { env.BUILD_BILLING == 'true' } }
-            steps {
-                echo '💰 Building Billing Service...'
-                script {
-                    def testFlag = params.RUN_TESTS ? '' : '-x test'
-                    sh "./gradlew :billing-service:clean :billing-service:build ${testFlag} --no-daemon"
-                }
-            }
-            post {
-                success {
-                    echo '✅ Billing Service build successful!'
-                    archiveArtifacts artifacts: 'billing-service/build/libs/*-SNAPSHOT.jar', fingerprint: true, allowEmptyArchive: true
-                }
-                failure { echo '❌ Billing Service build failed!' }
-            }
-        }
-
-        stage('Build Pharmacy Service') {
-            when { expression { env.BUILD_PHARMACY == 'true' } }
-            steps {
-                echo '💊 Building Pharmacy Service...'
-                script {
-                    def testFlag = params.RUN_TESTS ? '' : '-x test'
-                    sh "./gradlew :pharmacy-service:clean :pharmacy-service:build ${testFlag} --no-daemon"
-                }
-            }
-            post {
-                success {
-                    echo '✅ Pharmacy Service build successful!'
-                    archiveArtifacts artifacts: 'pharmacy-service/build/libs/*-SNAPSHOT.jar', fingerprint: true, allowEmptyArchive: true
-                }
-                failure { echo '❌ Pharmacy Service build failed!' }
-            }
-        }
-
-        // ======================== FRONTEND BUILD ========================
-
         stage('Build Frontend') {
             when { expression { env.BUILD_FRONT == 'true' } }
             steps {
-                echo '🌐 Building Frontend (Angular)...'
                 dir('frontend/ihms-portal') {
-                    sh '/usr/bin/node /usr/lib/node_modules/npm/bin/npm-cli.js ci'
-                    sh '/usr/bin/node node_modules/.bin/ng build --configuration=production'
+                    sh 'npm ci || npm install'
+                    sh 'npm run build -- --configuration=production'
                 }
             }
-            post {
-                success {
-                    echo '✅ Frontend build successful!'
-                    // Create tarball for Nexus deployment
-                    sh 'cd frontend/ihms-portal/dist/ihms-portal/browser && tar -czvf ../../../../ihms-portal-${BUILD_VERSION}.tar.gz .'
-                    archiveArtifacts artifacts: 'frontend/ihms-portal-*.tar.gz', fingerprint: true, allowEmptyArchive: true
-                }
-                failure { echo '❌ Frontend build failed!' }
-            }
+            post { success { sh "cd frontend/ihms-portal/dist/ihms-portal/browser && tar -czvf ../../../../ihms-portal-${FULL_VERSION}.tar.gz ." } }
         }
-
-        // ======================== DEPLOY TO NEXUS MAVEN REPOSITORY ========================
-
-        stage('Deploy JARs to Nexus Maven') {
-            when {
-                allOf {
-                    expression { params.DEPLOY_TO_NEXUS == true }
-                    expression {
-                        env.BUILD_DISCOVERY == 'true' || env.BUILD_GATEWAY == 'true' ||
-                        env.BUILD_AUTH == 'true' || env.BUILD_PATIENT == 'true' ||
-                        env.BUILD_APPOINTMENT == 'true' || env.BUILD_BILLING == 'true' ||
-                        env.BUILD_PHARMACY == 'true'
-                    }
-                }
-            }
+        stage('Deploy JARs to Nexus') {
+            when { allOf { expression { params.DEPLOY_TO_NEXUS } expression { env.BUILD_DISCOVERY == 'true' || env.BUILD_GATEWAY == 'true' || env.BUILD_AUTH == 'true' || env.BUILD_PATIENT == 'true' || env.BUILD_APPOINTMENT == 'true' || env.BUILD_BILLING == 'true' || env.BUILD_PHARMACY == 'true' } } }
             steps {
-                echo '📦 Deploying Backend JARs to Nexus Maven Repository...'
                 withCredentials([usernamePassword(credentialsId: "${NEXUS_CREDENTIALS_ID}", usernameVariable: 'NEXUS_USER', passwordVariable: 'NEXUS_PASS')]) {
                     script {
-                        def services = [
-                            [name: 'discovery-service', enabled: env.BUILD_DISCOVERY],
-                            [name: 'gateway-service', enabled: env.BUILD_GATEWAY],
-                            [name: 'auth-service', enabled: env.BUILD_AUTH],
-                            [name: 'patient-service', enabled: env.BUILD_PATIENT],
-                            [name: 'appointment-service', enabled: env.BUILD_APPOINTMENT],
-                            [name: 'billing-service', enabled: env.BUILD_BILLING],
-                            [name: 'pharmacy-service', enabled: env.BUILD_PHARMACY]
-                        ]
-
-                        services.each { service ->
-                            if (service.enabled == 'true') {
-                                echo "📤 Uploading ${service.name} to Nexus..."
+                        ['discovery-service': env.BUILD_DISCOVERY, 'gateway-service': env.BUILD_GATEWAY, 'auth-service': env.BUILD_AUTH, 'patient-service': env.BUILD_PATIENT, 'appointment-service': env.BUILD_APPOINTMENT, 'billing-service': env.BUILD_BILLING, 'pharmacy-service': env.BUILD_PHARMACY].each { svc, enabled ->
+                            if (enabled == 'true') {
                                 sh """
-                                    JAR_FILE=\$(find ${service.name}/build/libs -name "*-SNAPSHOT.jar" ! -name "*-plain.jar" | head -1)
-                                    if [ -f "\$JAR_FILE" ]; then
-                                        echo "Found JAR: \$JAR_FILE"
-                                        curl -v -u \$NEXUS_USER:\$NEXUS_PASS \\
-                                            --upload-file \$JAR_FILE \\
-                                            "${NEXUS_URL}/repository/${NEXUS_SNAPSHOT_REPOSITORY}/com/ihms/${service.name}/${env.BUILD_VERSION}/${service.name}-${env.BUILD_VERSION}.jar" \\
-                                            && echo "✅ ${service.name} uploaded successfully" \\
-                                            || echo "⚠️ Warning: Could not upload ${service.name}"
-                                    else
-                                        echo "⚠️ JAR not found for ${service.name}"
-                                    fi
+                                    JAR=\$(find ${svc}/build/libs -name "*-SNAPSHOT.jar" ! -name "*-plain.jar" | head -1)
+                                    [ -f "\$JAR" ] && curl -u \$NEXUS_USER:\$NEXUS_PASS --upload-file \$JAR "${NEXUS_URL}/repository/${env.NEXUS_REPO}/com/ihms/${svc}/${env.FULL_VERSION}/${svc}-${env.FULL_VERSION}.jar" && echo "Uploaded ${svc}:${env.FULL_VERSION}"
                                 """
                             }
                         }
@@ -314,225 +147,117 @@ pipeline {
                 }
             }
         }
-
         stage('Deploy Frontend to Nexus') {
-            when {
-                allOf {
-                    expression { params.DEPLOY_TO_NEXUS == true }
-                    expression { env.BUILD_FRONT == 'true' }
-                }
-            }
+            when { allOf { expression { params.DEPLOY_TO_NEXUS } expression { env.BUILD_FRONT == 'true' } } }
             steps {
-                echo '📦 Deploying Frontend to Nexus Repository...'
                 withCredentials([usernamePassword(credentialsId: "${NEXUS_CREDENTIALS_ID}", usernameVariable: 'NEXUS_USER', passwordVariable: 'NEXUS_PASS')]) {
                     sh """
-                        if [ -f "frontend/ihms-portal-${env.BUILD_VERSION}.tar.gz" ]; then
-                            curl -v -u \$NEXUS_USER:\$NEXUS_PASS \\
-                                --upload-file frontend/ihms-portal-${env.BUILD_VERSION}.tar.gz \\
-                                "${NEXUS_URL}/repository/${NEXUS_SNAPSHOT_REPOSITORY}/com/ihms/ihms-portal/${env.BUILD_VERSION}/ihms-portal-${env.BUILD_VERSION}.tar.gz" \\
-                                && echo "✅ Frontend uploaded successfully" \\
-                                || echo "⚠️ Warning: Could not upload frontend"
-                        else
-                            echo "⚠️ Frontend tarball not found"
-                        fi
+                        TARBALL=\$(find frontend -name "ihms-portal-*.tar.gz" | head -1)
+                        [ -f "\$TARBALL" ] && curl -u \$NEXUS_USER:\$NEXUS_PASS --upload-file \$TARBALL "${NEXUS_URL}/repository/${env.NEXUS_REPO}/com/ihms/ihms-portal/${env.FULL_VERSION}/ihms-portal-${env.FULL_VERSION}.tar.gz"
                     """
                 }
             }
         }
-
-        // ======================== DEPLOY DOCKER IMAGES TO NEXUS ========================
-
-        stage('Build & Push Docker Images to Nexus') {
-            when {
-                allOf {
-                    expression { params.DEPLOY_DOCKER_TO_NEXUS == true }
-                    expression {
-                        env.BUILD_DISCOVERY == 'true' || env.BUILD_GATEWAY == 'true' ||
-                        env.BUILD_AUTH == 'true' || env.BUILD_PATIENT == 'true' ||
-                        env.BUILD_APPOINTMENT == 'true' || env.BUILD_BILLING == 'true' ||
-                        env.BUILD_PHARMACY == 'true' || env.BUILD_FRONT == 'true'
-                    }
-                }
-            }
+        stage('Build & Push Docker') {
+            when { allOf { expression { params.DEPLOY_DOCKER_TO_NEXUS } expression { env.BUILD_DISCOVERY == 'true' || env.BUILD_GATEWAY == 'true' || env.BUILD_AUTH == 'true' || env.BUILD_PATIENT == 'true' || env.BUILD_APPOINTMENT == 'true' || env.BUILD_BILLING == 'true' || env.BUILD_PHARMACY == 'true' || env.BUILD_FRONT == 'true' } } }
             steps {
-                echo '🐳 Building and Pushing Docker Images to Nexus Docker Registry...'
                 withCredentials([usernamePassword(credentialsId: "${DOCKER_CREDENTIALS_ID}", usernameVariable: 'DOCKER_USER', passwordVariable: 'DOCKER_PASS')]) {
-                    sh "echo \$DOCKER_PASS | docker login ${DOCKER_REGISTRY} -u \$DOCKER_USER --password-stdin || echo '⚠️ Docker login failed - continuing anyway'"
-
+                    sh "echo \$DOCKER_PASS | docker login ${DOCKER_REGISTRY} -u \$DOCKER_USER --password-stdin || true"
                     script {
-                        def services = [
-                            [name: 'discovery-service', enabled: env.BUILD_DISCOVERY],
-                            [name: 'gateway-service', enabled: env.BUILD_GATEWAY],
-                            [name: 'auth-service', enabled: env.BUILD_AUTH],
-                            [name: 'patient-service', enabled: env.BUILD_PATIENT],
-                            [name: 'appointment-service', enabled: env.BUILD_APPOINTMENT],
-                            [name: 'billing-service', enabled: env.BUILD_BILLING],
-                            [name: 'pharmacy-service', enabled: env.BUILD_PHARMACY]
-                        ]
-
-                        services.each { service ->
-                            if (service.enabled == 'true') {
-                                echo "🐳 Building and pushing Docker image for ${service.name}..."
+                        ['discovery-service': env.BUILD_DISCOVERY, 'gateway-service': env.BUILD_GATEWAY, 'auth-service': env.BUILD_AUTH, 'patient-service': env.BUILD_PATIENT, 'appointment-service': env.BUILD_APPOINTMENT, 'billing-service': env.BUILD_BILLING, 'pharmacy-service': env.BUILD_PHARMACY].each { svc, enabled ->
+                            if (enabled == 'true') {
                                 sh """
-                                    docker build -t ${DOCKER_REGISTRY}/ihms/${service.name}:${env.BUILD_VERSION} \\
-                                                 -t ${DOCKER_REGISTRY}/ihms/${service.name}:latest \\
-                                                 -f ${service.name}/Dockerfile . \\
-                                        && echo "✅ Docker image built for ${service.name}" \\
-                                        || echo "⚠️ Docker build failed for ${service.name}"
-
-                                    docker push ${DOCKER_REGISTRY}/ihms/${service.name}:${env.BUILD_VERSION} || echo "⚠️ Push failed"
-                                    docker push ${DOCKER_REGISTRY}/ihms/${service.name}:latest || echo "⚠️ Push failed"
+                                    docker build -t ${DOCKER_REGISTRY}/ihms/${svc}:${env.DOCKER_TAG} -t ${DOCKER_REGISTRY}/ihms/${svc}:latest -t ${DOCKER_REGISTRY}/ihms/${svc}:build-${env.BUILD_NUMBER} -f ${svc}/Dockerfile.simple ${svc}
+                                    docker push ${DOCKER_REGISTRY}/ihms/${svc}:${env.DOCKER_TAG} || true
+                                    docker push ${DOCKER_REGISTRY}/ihms/${svc}:latest || true
+                                    docker push ${DOCKER_REGISTRY}/ihms/${svc}:build-${env.BUILD_NUMBER} || true
                                 """
                             }
                         }
-
-                        // Build and push frontend
                         if (env.BUILD_FRONT == 'true') {
-                            echo "🐳 Building and pushing Docker image for frontend..."
                             sh """
-                                docker build -t ${DOCKER_REGISTRY}/ihms/ihms-portal:${env.BUILD_VERSION} \\
-                                             -t ${DOCKER_REGISTRY}/ihms/ihms-portal:latest \\
-                                             -f frontend/ihms-portal/Dockerfile . \\
-                                    && echo "✅ Docker image built for frontend" \\
-                                    || echo "⚠️ Docker build failed for frontend"
-
-                                docker push ${DOCKER_REGISTRY}/ihms/ihms-portal:${env.BUILD_VERSION} || echo "⚠️ Push failed"
-                                docker push ${DOCKER_REGISTRY}/ihms/ihms-portal:latest || echo "⚠️ Push failed"
+                                docker build -t ${DOCKER_REGISTRY}/ihms/ihms-portal:${env.DOCKER_TAG} -t ${DOCKER_REGISTRY}/ihms/ihms-portal:latest -t ${DOCKER_REGISTRY}/ihms/ihms-portal:build-${env.BUILD_NUMBER} -f frontend/ihms-portal/Dockerfile frontend/ihms-portal
+                                docker push ${DOCKER_REGISTRY}/ihms/ihms-portal:${env.DOCKER_TAG} || true
+                                docker push ${DOCKER_REGISTRY}/ihms/ihms-portal:latest || true
+                                docker push ${DOCKER_REGISTRY}/ihms/ihms-portal:build-${env.BUILD_NUMBER} || true
                             """
                         }
                     }
                 }
             }
         }
-
-        // ======================== DEPLOY TO LOCAL DOCKER (Optional) ========================
-
-        stage('Deploy to Local Docker') {
-            when { expression { params.DEPLOY_TO_LOCAL_DOCKER == true } }
+        stage('Deploy Services') {
+            when { expression { params.DEPLOY_SERVICES } }
             steps {
-                echo '🖥️ Deploying to Local Docker...'
                 script {
-                    // Start databases if any backend service is being deployed
-                    if (env.BUILD_DISCOVERY == 'true' || env.BUILD_GATEWAY == 'true' ||
-                        env.BUILD_AUTH == 'true' || env.BUILD_PATIENT == 'true' ||
-                        env.BUILD_APPOINTMENT == 'true' || env.BUILD_BILLING == 'true' ||
-                        env.BUILD_PHARMACY == 'true') {
-
-                        sh '''
-                            docker-compose -f docker-compose.local.yml up -d auth-db patient-db appointment-db billing-db pharmacy-db || true
-                            echo "⏳ Waiting for databases..."
-                            sleep 15
-                        '''
-                    }
-
-                    // Deploy selected backend services
-                    def backendServices = [
-                        [name: 'discovery-service', enabled: env.BUILD_DISCOVERY],
-                        [name: 'gateway-service', enabled: env.BUILD_GATEWAY],
-                        [name: 'auth-service', enabled: env.BUILD_AUTH],
-                        [name: 'patient-service', enabled: env.BUILD_PATIENT],
-                        [name: 'appointment-service', enabled: env.BUILD_APPOINTMENT],
-                        [name: 'billing-service', enabled: env.BUILD_BILLING],
-                        [name: 'pharmacy-service', enabled: env.BUILD_PHARMACY]
+                    def svcs = [
+                        ['discovery-service', 'ihms-discovery-service', 8761, env.BUILD_DISCOVERY],
+                        ['gateway-service', 'ihms-gateway-service', 8080, env.BUILD_GATEWAY],
+                        ['auth-service', 'ihms-auth-service', 8081, env.BUILD_AUTH],
+                        ['patient-service', 'ihms-patient-service', 8082, env.BUILD_PATIENT],
+                        ['appointment-service', 'ihms-appointment-service', 8083, env.BUILD_APPOINTMENT],
+                        ['billing-service', 'ihms-billing-service', 8084, env.BUILD_BILLING],
+                        ['pharmacy-service', 'ihms-pharmacy-service', 8085, env.BUILD_PHARMACY]
                     ]
-
-                    backendServices.each { service ->
-                        if (service.enabled == 'true') {
-                            sh "docker-compose -f docker-compose.local.yml up -d --no-deps --build ${service.name} || echo '⚠️ Could not start ${service.name}'"
+                    svcs.each { s ->
+                        if (s[3] == 'true') {
+                            sh """
+                                docker stop ${s[1]} 2>/dev/null || true
+                                docker rm ${s[1]} 2>/dev/null || true
+                                docker run -d --name ${s[1]} --network jenkins_po_source_ihms-network -p ${s[2]}:${s[2]} -e SPRING_PROFILES_ACTIVE=docker -e EUREKA_CLIENT_SERVICEURL_DEFAULTZONE=http://ihms-discovery-service:8761/eureka/ --restart unless-stopped ${DOCKER_REGISTRY}/ihms/${s[0]}:${env.DOCKER_TAG}
+                            """
                         }
                     }
-
-                    // Deploy frontend
                     if (env.BUILD_FRONT == 'true') {
-                        sh '''
-                            docker rm -f ihms-portal 2>/dev/null || true
-                            docker-compose -f docker-compose.local.yml build ihms-portal || true
-                            docker run -d --name ihms-portal -p 3000:80 --network jenkins_po_source_ihms-network jenkins_po_source_ihms-portal:latest || echo "⚠️ Could not start frontend"
-                        '''
+                        sh """
+                            docker stop ihms-frontend 2>/dev/null || true
+                            docker rm ihms-frontend 2>/dev/null || true
+                            docker run -d --name ihms-frontend --network jenkins_po_source_ihms-network -p 3000:80 --restart unless-stopped ${DOCKER_REGISTRY}/ihms/ihms-portal:${env.DOCKER_TAG}
+                        """
                     }
                 }
             }
         }
-
-        // ======================== VERIFICATION ========================
-
-        stage('Verify Deployment') {
+        stage('Service Action') {
+            when { expression { params.SERVICE_ACTION != 'NONE' } }
             steps {
-                echo '✅ Verifying Deployment...'
-                sh 'sleep 15'
                 script {
-                    sh '''
-                        echo ""
-                        echo "╔══════════════════════════════════════════════════════════════╗"
-                        echo "║              DEPLOYMENT VERIFICATION                         ║"
-                        echo "╠══════════════════════════════════════════════════════════════╣"
-                        echo "║ Docker Containers:                                           ║"
-                        docker ps --format "table {{.Names}}\\t{{.Status}}" | grep -E "ihms|nexus" || echo "No IHMS/Nexus containers"
-                        echo "╚══════════════════════════════════════════════════════════════╝"
-                    '''
-
-                    if (params.DEPLOY_TO_LOCAL_DOCKER) {
-                        sh '''
-                            echo ""
-                            echo "=== Service Health Check ==="
-                        '''
-
-                        def healthChecks = [
-                            [name: 'Discovery', port: 8761, enabled: env.BUILD_DISCOVERY],
-                            [name: 'Gateway', port: 8080, enabled: env.BUILD_GATEWAY],
-                            [name: 'Auth', port: 8081, enabled: env.BUILD_AUTH],
-                            [name: 'Patient', port: 8082, enabled: env.BUILD_PATIENT],
-                            [name: 'Appointment', port: 8083, enabled: env.BUILD_APPOINTMENT],
-                            [name: 'Billing', port: 8084, enabled: env.BUILD_BILLING],
-                            [name: 'Pharmacy', port: 8085, enabled: env.BUILD_PHARMACY]
-                        ]
-
-                        healthChecks.each { check ->
-                            if (check.enabled == 'true') {
-                                sh "echo -n '${check.name} (${check.port}): ' && curl -s http://localhost:${check.port}/actuator/health 2>/dev/null | grep -o '\"status\":\"[^\"]*\"' || echo 'DOWN'"
-                            }
-                        }
-
-                        if (env.BUILD_FRONT == 'true') {
-                            sh 'echo -n "Frontend (3000): " && curl -s http://localhost:3000 2>/dev/null | head -1 | grep -q html && echo "UP" || echo "DOWN"'
-                        }
+                    def containers = []
+                    if (env.BUILD_DISCOVERY == 'true') containers << 'ihms-discovery-service'
+                    if (env.BUILD_GATEWAY == 'true') containers << 'ihms-gateway-service'
+                    if (env.BUILD_AUTH == 'true') containers << 'ihms-auth-service'
+                    if (env.BUILD_PATIENT == 'true') containers << 'ihms-patient-service'
+                    if (env.BUILD_APPOINTMENT == 'true') containers << 'ihms-appointment-service'
+                    if (env.BUILD_BILLING == 'true') containers << 'ihms-billing-service'
+                    if (env.BUILD_PHARMACY == 'true') containers << 'ihms-pharmacy-service'
+                    if (env.BUILD_FRONT == 'true') containers << 'ihms-frontend'
+                    containers.each { c ->
+                        sh "docker ${params.SERVICE_ACTION.toLowerCase()} ${c} || true"
                     }
                 }
             }
+        }
+        stage('Summary') {
+            steps { sh 'docker images | grep ihms || true; echo "---"; docker ps --format "table {{.Names}}\\t{{.Image}}\\t{{.Status}}" | grep ihms || true' }
         }
     }
-
     post {
         success {
             echo """
-╔══════════════════════════════════════════════════════════════════════════╗
-║            ✅ IHMS BUILD & DEPLOYMENT SUCCESSFUL!                        ║
-╠══════════════════════════════════════════════════════════════════════════╣
-║ BUILT SERVICES:                                                          ║
-║   Discovery: ${env.BUILD_DISCOVERY}  Gateway: ${env.BUILD_GATEWAY}  Auth: ${env.BUILD_AUTH}
-║   Patient: ${env.BUILD_PATIENT}  Appointment: ${env.BUILD_APPOINTMENT}
-║   Billing: ${env.BUILD_BILLING}  Pharmacy: ${env.BUILD_PHARMACY}  Frontend: ${env.BUILD_FRONT}
-╠══════════════════════════════════════════════════════════════════════════╣
-║ ARTIFACTS:                                                               ║
-║   Version:          ${env.BUILD_VERSION}
-║   Nexus Maven:      ${NEXUS_URL}/repository/${NEXUS_SNAPSHOT_REPOSITORY}
-║   Nexus Docker:     ${DOCKER_REGISTRY}/ihms/*
-╠══════════════════════════════════════════════════════════════════════════╣
-║ LOCAL ACCESS (if deployed):                                              ║
-║   🌐 Frontend:  http://localhost:3000                                    ║
-║   🔌 Gateway:   http://localhost:8080                                    ║
-║   📡 Eureka:    http://localhost:8761                                    ║
-║   📦 Nexus:     http://localhost:8081                                    ║
-╚══════════════════════════════════════════════════════════════════════════╝
+========================================================================
+BUILD SUCCESSFUL! VERSION: ${env.VERSION_TAG} | DOCKER: ${env.DOCKER_TAG}
+TAGS: ${env.DOCKER_TAG}, latest, build-${env.BUILD_NUMBER}
+------------------------------------------------------------------------
+Service UP:   docker start <container>
+Service DOWN: docker stop <container>
+Rollback:     docker run -d --name <c> <image>:<old-tag>
+------------------------------------------------------------------------
+Frontend: http://localhost:3000 | Gateway: http://localhost:8080
+Eureka: http://localhost:8761 | Nexus: http://localhost:8090
+========================================================================
             """
         }
-        failure {
-            echo '❌ Pipeline failed! Check logs for details.'
-        }
-        always {
-            sh 'docker logout ${DOCKER_REGISTRY} 2>/dev/null || true'
-            cleanWs(cleanWhenNotBuilt: false, deleteDirs: true, disableDeferredWipeout: true, notFailBuild: true)
-        }
+        failure { echo 'Build failed!' }
+        always { sh 'docker logout ${DOCKER_REGISTRY} 2>/dev/null || true'; cleanWs(cleanWhenNotBuilt: false, deleteDirs: true, disableDeferredWipeout: true, notFailBuild: true) }
     }
 }
-
